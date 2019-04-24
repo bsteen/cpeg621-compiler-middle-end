@@ -1,6 +1,16 @@
 # Benjamin Steenkamer
 # CPEG 621 Lab 3 - A Calculator Compiler Middle End
 #
+# TO DO:
+# Read notes
+#	Basic blocks
+# 	SSA
+# 		What is phi function?
+# Implement Basic blocks
+# Implement SSA
+# Verify all features
+# Write report
+
 calc: calc.l calc.y
 	bison -d calc.y
 	flex calc.l

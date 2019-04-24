@@ -7,6 +7,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define MAX_USR_NUM_VARS 128
+#define MAX_USR_VAR_NAME_LEN 64
+
+
 int yylex(void);					// Will be generated in lex.yy.c by flex
 
 // Following are defined below in sub-routines section
@@ -18,7 +22,6 @@ void gen_tac_if(char * cond_expr);
 void gen_tac_assign_else(char * expr);
 void gen_tac_empty_else();
 void track_user_var(char * var, int assigned);
-void gen_c_code();
 void yyerror(const char *);
 
 int do_gen_else = 0;				// When set do the else part of the if/else statement
@@ -81,13 +84,13 @@ expr :
 	| expr '-' expr		{ $$ = gen_tac_expr($1, "-", $3); my_free($1); my_free($3); }
 	| expr '*' expr		{ $$ = gen_tac_expr($1, "*", $3); my_free($1); my_free($3); }
 	| expr '/' expr		{ $$ = gen_tac_expr($1, "/", $3); my_free($1); my_free($3); }
-	| '!' expr			{ $$ = gen_tac_expr(NULL, "!", $2); my_free($2); }		// Bitwise not in calc lang
+	| '!' expr			{ $$ = gen_tac_expr(NULL, "!", $2); my_free($2); }		// Bitwise-not in calc lang
 	| expr POWER expr	{ $$ = gen_tac_expr($1, "**", $3); my_free($1); my_free($3);}
 	| '(' expr ')'		{ $$ = $2; }					// Will give syntax error for unmatched parens
 	| '(' expr ')' '?' { gen_tac_if($2); } '(' expr ')'
 						{
 							$$ = $7;
-							do_gen_else++;	// Keep track of how many closing elses are need for 
+							do_gen_else++;	// Keep track of how many closing elses are need for
 							my_free($2);	// nested if/else cases
 						}
 	;
@@ -230,150 +233,6 @@ void track_user_var(char *var, int assigned)
 	return;
 }
 
-// Take the TAC and generate a valid C program code
-void gen_c_code(char * input, char * output, int regs)
-{
-	// Open files for reading TAC and writing C code
-	tac_file = fopen(input, "r");
-	c_code_file = fopen(output, "w");
-	if (tac_file == NULL)
-	{
-		yyerror("Couldn't open TAC file in C code generation step");
-		exit(1);
-	}
-	if (c_code_file == NULL)
-	{
-		yyerror("Couldn't create C code output file");
-		exit(1);
-	}
-
-	int i;
-	fprintf(c_code_file, "#include <stdio.h>\n#include <math.h>\n\nint main() {\n");
-
-	// Declare all user variables and initialize them to 0
-	if (num_user_vars > 0)
-	{
-		fprintf(c_code_file, "\tint ");
-	}
-	for(i = 0; i < num_user_vars; i++)
-	{
-		if (i != num_user_vars - 1)
-		{
-			fprintf(c_code_file, "%s = 0, ", user_vars[i]);
-		}
-		else
-		{
-			fprintf(c_code_file, "%s = 0;\n", user_vars[i]);
-		}
-	}
-
-	// Declare all temp variables and initialize them to 0
-	if (num_temp_vars > 0)
-	{
-		fprintf(c_code_file, "\tint ");
-	}
-	for(i = 0; i < num_temp_vars; i++)
-	{
-		if(i < num_temp_vars - 1)
-		{
-			fprintf(c_code_file, "_t%d = 0, ", i);
-		}
-		else
-		{
-			fprintf(c_code_file, "_t%d = 0;\n", i);
-		}
-	}
-
-	// Create register variables
-	if(regs)
-	{
-		fprintf(c_code_file, "\tint ");
-		for(i = 0; i < NUM_REG; i++)
-		{
-			if(i < NUM_REG - 1)
-			{
-				fprintf(c_code_file, "_r%d = 0, ", i + 1);
-			}
-			else
-			{
-				fprintf(c_code_file, "_r%d = 0;\n", i + 1);
-			}
-		}
-	}
-
-	fprintf(c_code_file, "\n");
-
-	// Initialize user variables not assigned (ask user input for variables)
-	for (i = 0; i < num_user_vars_wo_def; i++)
-	{
-		fprintf(c_code_file, "\tprintf(\"%s=\");\n", user_vars_wo_def[i]);
-		fprintf(c_code_file, "\tscanf(\"%%d\", &%s);\n\n", user_vars_wo_def[i]);
-	}
-
-	// Read in TAC file, write to c file with line labels
-	// Convert lines with ** or ! and replace with pow or ~
-	char line_buf[MAX_USR_VAR_NAME_LEN * 4];
-	char *bitwise;
-	char *pow;
-	i = 0;
-	while(fgets(line_buf, MAX_USR_VAR_NAME_LEN * 4, tac_file) != NULL)
-	{
-		// Don't print label if line is a closing } or else statement
-		if(strcmp(line_buf, "}\n") == 0 || strcmp(line_buf, "} else {\n") == 0)
-		{
-			fprintf(c_code_file, "\t\t\t%s", line_buf);
-			continue;
-		}
-
-		bitwise = strstr(line_buf, "!");
-		pow = strstr(line_buf, "**");
-
-		if(bitwise != NULL) 		// Replace ! with ~
-		{
-			*bitwise = '~';
-		}
-		else if(pow != NULL)		// Split up the line with a ** and reformat it with a pow() func
-		{
-			char temp[MAX_USR_VAR_NAME_LEN * 4];
-			strcpy(temp, line_buf);
-
-			char *first = strtok(temp, " =*;");		// Lines with ** will always have 3 operands
-			char *second = strtok(NULL, " =*;");
-			char *third = strtok(NULL, " =*;");
-
-			sprintf(line_buf, "%s = (int)pow(%s, %s);\n", first, second, third);
-		}
-
-		// Print c code line with line # label
-		if(i < 10)
-		{
-			fprintf(c_code_file, "\tS%d:\t\t%s", i, line_buf);
-		}
-		else
-		{
-			fprintf(c_code_file, "\tS%d:\t%s", i, line_buf);
-		}
-
-		i++;	// Increment line number
-	}
-
-	fprintf(c_code_file, "\n");
-
-	// Print out user variable final values
-	for(i = 0; i < num_user_vars; i++)
-	{
-		fprintf(c_code_file, "\tprintf(\"%s=%%d\\n\", %s);\n", user_vars[i], user_vars[i]);
-	}
-
-	fprintf(c_code_file, "\n\treturn 0;\n}\n");
-
-	// Close files from C code generation
-	fclose(tac_file);
-	fclose(c_code_file);
-
-	return;
-}
-
 void yyerror(const char *s)
 {
 	printf("%s\n", s);
@@ -400,20 +259,20 @@ int main(int argc, char *argv[])
 	// Open the output file where the three address codes will be written
 	char * frontend_tac_name = "Output/tac-frontend.txt";
 	tac_file = fopen(frontend_tac_name, "w");
-	
+
 	if (tac_file == NULL)
 	{
 		yyerror("Couldn't create TAC file");
 		exit(1);
 	}
 
-	yyparse();	// Read in the input program and parse the tokens
+	// Read in the input program and parse the tokens
+	// Also rights out frontend TAC to file
+	yyparse();
 
 	// Close the files from initial TAC generation
 	fclose(yyin);
 	fclose(tac_file);
-	
-	gen_c_code(frontend_tac_name, "Output/c-backend.c", 0);				// Generate C code from initial TAC
 
 	return 0;
 }
