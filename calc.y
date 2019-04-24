@@ -6,10 +6,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "basic-block.h"
 
 #define MAX_USR_NUM_VARS 128
 #define MAX_USR_VAR_NAME_LEN 64
-
 
 int yylex(void);					// Will be generated in lex.yy.c by flex
 
@@ -21,15 +21,14 @@ char* gen_tac_expr(char * one, char * op, char * three);
 void gen_tac_if(char * cond_expr);
 void gen_tac_assign_else(char * expr);
 void gen_tac_empty_else();
-void track_user_var(char * var, int assigned);
+void track_user_var(char * var);
 void yyerror(const char *);
 
 int do_gen_else = 0;				// When set do the else part of the if/else statement
 int num_temp_vars = 0;				// Number of temp vars in use
 int num_user_vars = 0;				// Number of user variables in use
 int num_user_vars_wo_def = 0;		// Number of user variables that didn't have declarations
-char user_vars[MAX_USR_NUM_VARS][MAX_USR_VAR_NAME_LEN + 1];			// List of all unique user vars in proper
-char user_vars_wo_def[MAX_USR_NUM_VARS][MAX_USR_VAR_NAME_LEN + 1];	// List of user vars used w/o definition
+char user_vars[MAX_USR_NUM_VARS][MAX_USR_VAR_NAME_LEN + 1];			// List of all unique user vars
 
 int flex_line_num = 1;		// Used for debugging
 FILE * yyin;				// Input calc program file pointer
@@ -78,7 +77,7 @@ calc :
 
 expr :
 	INTEGER				{ $$ = $1; }
-	| VARIABLE        	{ $$ = lc($1); track_user_var(lc($1), 0); }
+	| VARIABLE        	{ $$ = lc($1); track_user_var(lc($1)); }
 	| VARIABLE '=' expr	{ $$ = lc($1); gen_tac_assign(lc($1), $3); my_free($3); }
 	| expr '+' expr		{ $$ = gen_tac_expr($1, "+", $3); my_free($1); my_free($3); }
 	| expr '-' expr		{ $$ = gen_tac_expr($1, "-", $3); my_free($1); my_free($3); }
@@ -130,7 +129,7 @@ char* lc(char *str)
 // For case where variable is being assigned an expression
 void gen_tac_assign(char * var, char * expr)
 {
-	track_user_var(var, 1);
+	track_user_var(var);
 
 	fprintf(tac_file, "%s = %s;\n", var, expr);
 
@@ -196,7 +195,7 @@ void gen_tac_empty_else()
 
 // Records all first appearances of user variables for use in C code generation
 // If variable is not being defined and hasn't been used before, add it to list of uninitialized variables
-void track_user_var(char *var, int assigned)
+void track_user_var(char *var)
 {
 	// Check if variable has been recorded before
 	int i;
@@ -218,13 +217,6 @@ void track_user_var(char *var, int assigned)
 	{
 		yyerror("Variable name too long");
 		exit(1); 	// Exit since variable (and therefor the entire program) is not valid
-	}
-
-	// If the variable hasn't been seen before, need to record its first appearance
-	if(!assigned)	// If variable is not being assigned a value, then it's first use is without a definition
-	{
-		strcpy(user_vars_wo_def[num_user_vars_wo_def], var);
-		num_user_vars_wo_def++;
 	}
 
 	strcpy(user_vars[num_user_vars], var);
@@ -265,6 +257,9 @@ int main(int argc, char *argv[])
 		yyerror("Couldn't create TAC file");
 		exit(1);
 	}
+	
+	char * bb_file_name = "Output/basic-block.txt";
+	init_basic_block_file(bb_file_name);
 
 	// Read in the input program and parse the tokens
 	// Also rights out frontend TAC to file
@@ -273,6 +268,7 @@ int main(int argc, char *argv[])
 	// Close the files from initial TAC generation
 	fclose(yyin);
 	fclose(tac_file);
+	close_basic_block_file(bb_file_name);
 
 	return 0;
 }
