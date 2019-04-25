@@ -8,26 +8,28 @@
 #include <string.h>
 #include "basic-block.h"
 
-#define MAX_USR_NUM_VARS 128
-#define MAX_USR_VAR_NAME_LEN 64
+#define MAX_USR_NUM_VARS 		128
+#define MAX_USR_VAR_NAME_LEN	64
+#define MAX_NESTED_IFS			2
 
 int yylex(void);					// Will be generated in lex.yy.c by flex
 
 // Following are defined below in sub-routines section
-void my_free(char * ptr);
+void my_free(char *ptr);
 char* lc(char *str);
-void gen_tac_assign(char * var, char * expr);
-char* gen_tac_expr(char * one, char * op, char * three);
-void gen_tac_if(char * cond_expr);
-void gen_tac_assign_else(char * expr);
-void gen_tac_empty_else();
-void track_user_var(char * var);
+void gen_tac_assign(char *var, char *expr);
+char* gen_tac_expr(char *one, char *op, char *three);
+void gen_tac_if(char *cond_expr);
+void gen_tac_else(char *expr);
+void track_user_var(char *var);
 void yyerror(const char *);
 
+int inside_if1 = 0;					// For tracking nest of level of if-statements
+int inside_if2 = 0;
 int do_gen_else = 0;				// When set do the else part of the if/else statement
 int num_temp_vars = 0;				// Number of temp vars in use
 int num_user_vars = 0;				// Number of user variables in use
-int num_user_vars_wo_def = 0;		// Number of user variables that didn't have declarations
+
 char user_vars[MAX_USR_NUM_VARS][MAX_USR_VAR_NAME_LEN + 1];			// List of all unique user vars
 
 int flex_line_num = 1;		// Used for debugging
@@ -71,7 +73,7 @@ FILE * c_code_file;			// C code produced by backend file pointer
 %%
 
 calc :
-	calc expr '\n'		{ my_free($2); gen_tac_empty_else(); }
+	calc expr '\n'		{ my_free($2); gen_tac_else(NULL); }
 	|
 	;
 
@@ -131,9 +133,13 @@ void gen_tac_assign(char * var, char * expr)
 {
 	track_user_var(var);
 
-	fprintf(tac_file, "%s = %s;\n", var, expr);
+	char tac_buf[MAX_USR_VAR_NAME_LEN * 4];
+	sprintf(tac_buf, "%s = %s;\n", var, expr);
 
-	gen_tac_assign_else(var);
+	fprintf(tac_file, tac_buf);
+	bb_print_tac(tac_buf);
+
+	gen_tac_else(var);
 
 	return;
 }
@@ -143,6 +149,7 @@ void gen_tac_assign(char * var, char * expr)
 char* gen_tac_expr(char * one, char * op, char * three)
 {
 	char tmp_var_name[13]; 	// temp var names: _t0123456789
+	char tac_buf[MAX_USR_VAR_NAME_LEN * 4];
 
 	// Create the temp variable name
 	sprintf(tmp_var_name, "_t%d", num_temp_vars);
@@ -151,12 +158,17 @@ char* gen_tac_expr(char * one, char * op, char * three)
 	if (one != NULL)
 	{
 		// Write out three address code
-		fprintf(tac_file, "%s = %s %s %s;\n", tmp_var_name, one, op, three);
+		sprintf(tac_buf, "%s = %s %s %s;\n", tmp_var_name, one, op, three);
+		fprintf(tac_file, tac_buf);
+
 	}
 	else	// Unary operator case
 	{
-		fprintf(tac_file, "%s = %s%s;\n", tmp_var_name, op, three);
+		sprintf(tac_buf, "%s = %s%s;\n", tmp_var_name, op, three);
+		fprintf(tac_file, tac_buf);
 	}
+
+	bb_print_tac(tac_buf);
 
 	return strdup(tmp_var_name);
 }
@@ -164,30 +176,53 @@ char* gen_tac_expr(char * one, char * op, char * three)
 // Print out the if part of the if/else statement
 void gen_tac_if(char * cond_expr)
 {
-	fprintf(tac_file, "if(%s) {\n", cond_expr);
-
-	return;
-}
-
-// Print out closing brace of if statement and the whole else statement
-// else will be a variable being assigned to a value of zero
-void gen_tac_assign_else(char * expr)
-{
-	for (; do_gen_else > 0; do_gen_else--)
+	// Track entering of if-statements
+	if(inside_if1)
 	{
-		fprintf(tac_file, "} else {\n%s = 0;\n}\n", expr);
+		inside_if2 = 1;
+	}
+	else
+	{
+		inside_if1 = 1;
 	}
 
+	char buf[MAX_USR_VAR_NAME_LEN * 2];
+	sprintf(buf, "if(%s) {\n", cond_expr);
+
+	fprintf(tac_file, buf);
+	bb_print_if_else_block_end(buf, inside_if2);
+
 	return;
 }
 
+// Print out closing brace of if-statement and the whole else statement
+// else will be a variable being assigned to a value of zero
 // If the result of the conditional expression is not being written to a variable
-// the else part will be empty
-void gen_tac_empty_else()
+// the else part will be empty (when expr is NULL)
+void gen_tac_else(char *expr)
 {
 	for (; do_gen_else > 0; do_gen_else--)
 	{
-		fprintf(tac_file, "} else {\n}\n");
+		if(expr != NULL)
+		{
+			fprintf(tac_file, "} else {\n%s = 0;\n}\n", expr);
+		}
+		else
+		{
+			fprintf(tac_file, "} else {\n}\n");
+		}
+		
+		// Track exiting of if-statements
+		if(inside_if2 == 1)
+		{
+			inside_if2 = 0;
+		}
+		else
+		{
+			inside_if1 = 0;
+		}
+
+		bb_print_else_block(expr, !inside_if1);
 	}
 
 	return;
@@ -257,9 +292,9 @@ int main(int argc, char *argv[])
 		yyerror("Couldn't create TAC file");
 		exit(1);
 	}
-	
+
 	char * bb_file_name = "Output/basic-block.txt";
-	init_basic_block_file(bb_file_name);
+	bb_init_file(bb_file_name);
 
 	// Read in the input program and parse the tokens
 	// Also rights out frontend TAC to file
@@ -268,7 +303,7 @@ int main(int argc, char *argv[])
 	// Close the files from initial TAC generation
 	fclose(yyin);
 	fclose(tac_file);
-	close_basic_block_file(bb_file_name);
+	bb_close_file(bb_file_name);
 
 	return 0;
 }

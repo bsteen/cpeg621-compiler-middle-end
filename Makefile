@@ -3,11 +3,15 @@
 #
 # TO DO:
 #	Basic blocks
+# 		enforce 2 deep in calc.y
+# 		add comments
+# Add back C generation code for testing
 # Implement Basic blocks
 # Implement SSA
 #	Variable names
 #	Phi insertion
 # Verify all features
+#	Test O4 vs normal speed
 # Write report
 
 calc: calc.l calc.y basic-block.c basic-block.h
