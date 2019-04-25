@@ -27,6 +27,7 @@ void yyerror(const char *);
 int inside_if1 = 0;					// For tracking nest of level of if-statements
 int inside_if2 = 0;
 int do_gen_else = 0;				// When set do the else part of the if/else statement
+int if_depth = 0;					// Amount of nested if-statements (only finite amount allowed)
 int num_temp_vars = 0;				// Number of temp vars in use
 int num_user_vars = 0;				// Number of user variables in use
 
@@ -148,7 +149,7 @@ void gen_tac_assign(char * var, char * expr)
 // Returns temporary variable's name (that must be freed later)
 char* gen_tac_expr(char * one, char * op, char * three)
 {
-	char tmp_var_name[13]; 	// temp var names: _t0123456789
+	char tmp_var_name[16]; 	// temp var names: _t0123456789
 	char tac_buf[MAX_USR_VAR_NAME_LEN * 4];
 
 	// Create the temp variable name
@@ -176,6 +177,16 @@ char* gen_tac_expr(char * one, char * op, char * three)
 // Print out the if part of the if/else statement
 void gen_tac_if(char * cond_expr)
 {
+	if_depth++;
+	if(if_depth > MAX_NESTED_IFS)
+	{
+		char err_buf[128];
+		sprintf(err_buf, "Max number of nested if-statements exceeded (MAX=%d)", MAX_NESTED_IFS);
+		yyerror(err_buf);
+		
+		exit(1);
+	}
+	
 	// Track entering of if-statements
 	if(inside_if1)
 	{
@@ -203,6 +214,8 @@ void gen_tac_else(char *expr)
 {
 	for (; do_gen_else > 0; do_gen_else--)
 	{
+		if_depth--;
+		
 		if(expr != NULL)
 		{
 			fprintf(tac_file, "} else {\n%s = 0;\n}\n", expr);

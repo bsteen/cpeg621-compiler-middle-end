@@ -47,12 +47,12 @@ void _bb_print_next_blk_tag()
 }
 
 // Prints out the end of the basic block, which will contain an if/else
-// statement that slits the flow (and ends the current base block)
+// statement that splits the flow (and ends the current basic block)
 void bb_print_if_else_block_end(char *if_stmt, int entering_nested_if)
 {
 	if(entering_nested_if)					// Just entering nested if/else
 	{
-		outer_else_tag = next_block_tag;		// Tag used previously is outer else's tag
+		outer_else_tag = next_block_tag;	// Tag used previously is outer else's tag
 		next_block_tag++;					// So next block doesn't reuse the else's tag
 		is_nested = 1;
 	}

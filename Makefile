@@ -2,14 +2,12 @@
 # CPEG 621 Lab 3 - A Calculator Compiler Middle End
 #
 # TO DO:
-#	Basic blocks
-# 		enforce 2 deep in calc.y
-# 		add comments
 # Add back C generation code for testing
-# Implement Basic blocks
+# Compare Basic blocks to front end
 # Implement SSA
 #	Variable names
 #	Phi insertion
+# Sweep to remove empty basic blocks
 # Verify all features
 #	Test O4 vs normal speed
 # Write report
