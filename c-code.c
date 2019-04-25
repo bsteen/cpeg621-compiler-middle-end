@@ -8,7 +8,6 @@
 #include "calc.h"		// To get calc compiler global constants/defines
 #include "c-code.h"
 
-int num_temp_vars;				// Number of temp vars in use
 int num_user_vars;				// Number of user variables in use
 int num_user_vars_wo_def;		// Number of user variables that didn't have declarations
 char user_vars[MAX_USR_NUM_VARS][MAX_USR_VAR_NAME_LEN + 1];			// List of all unique user vars in proper
@@ -16,7 +15,6 @@ char user_vars_wo_def[MAX_USR_NUM_VARS][MAX_USR_VAR_NAME_LEN + 1];	// List of us
 
 void init_c_code()
 {
-	num_temp_vars = 0;
 	num_user_vars = 0;
 	num_user_vars_wo_def = 0;
 	
@@ -63,7 +61,7 @@ void track_user_var(char *var, int assigned)
 }
 
 // Take the TAC and generate a valid C program code
-void gen_c_code(char * input, char * output)
+void gen_c_code(char * input, char * output, int num_temp_vars)
 {
 	// Open files for reading TAC and writing C code
 	FILE * tac_file = fopen(input, "r");

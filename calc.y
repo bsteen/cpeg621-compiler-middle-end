@@ -6,9 +6,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
 #include "basic-block.h"
 #include "calc.h"
 #include "c-code.h"
+#include "ssa.h"
 
 int yylex(void);					// Will be generated in lex.yy.c by flex
 
@@ -25,10 +27,7 @@ int inside_if1 = 0;					// For tracking nest of level of if-statements
 int inside_if2 = 0;
 int do_gen_else = 0;				// When set do the else part of the if/else statement
 int if_depth = 0;					// Amount of nested if-statements (only finite amount allowed)
-int num_temp_vars = 0;				// Number of temp vars in use
-int num_user_vars = 0;				// Number of user variables in use
-
-char user_vars[MAX_USR_NUM_VARS][MAX_USR_VAR_NAME_LEN + 1];			// List of all unique user vars
+int temp_var_ctr = 0;				// Number of temp vars in use
 
 int flex_line_num = 1;		// Used for debugging
 FILE * yyin;				// Input calc program file pointer
@@ -150,8 +149,8 @@ char* gen_tac_expr(char * one, char * op, char * three)
 	char tac_buf[MAX_USR_VAR_NAME_LEN * 4];
 
 	// Create the temp variable name
-	sprintf(tmp_var_name, "_t%d", num_temp_vars);
-	num_temp_vars++;
+	sprintf(tmp_var_name, "_t%d", temp_var_ctr);
+	temp_var_ctr++;
 
 	if (one != NULL)
 	{
@@ -274,10 +273,10 @@ int main(int argc, char *argv[])
 	char * bb_file_name = "Output/tac-basic-block.txt";
 	bb_init_file(bb_file_name);
 	
-	init_c_code();
+	init_c_code();	// Initialize counters for var tracking (tracking results only used in C code gen)
 
-	// Read in the input program and parse the tokens
-	// Also rights out frontend TAC to file
+	// Read in the input program and parse the tokens, writes out frontend TAC to file
+	// and writes out basic block form of TAC
 	yyparse();
 
 	// Close the files from initial TAC generation
@@ -285,9 +284,14 @@ int main(int argc, char *argv[])
 	fclose(tac_file);
 	bb_close_file(bb_file_name);
 	
-	// Generate runnable C code from frontend TAC and base block code
-	gen_c_code(frontend_tac_name, "Output/c-frontend.c");
-	gen_c_code(bb_file_name, "Output/c-basic-block.c");
+	// Convert the basic block in SAA form and insert Phi functions where needed
+	char *ssa_file_name =  "Output/tac-saa.txt";
+	ssa_convert_to_ssa(bb_file_name, ssa_file_name);
+	ssa_insert_phis(ssa_file_name);
+	
+	// Generate runnable C code from frontend TAC and basic block code
+	gen_c_code(frontend_tac_name, "Output/c-frontend.c", temp_var_ctr);
+	gen_c_code(bb_file_name, "Output/c-basic-block.c", temp_var_ctr);
 
 	return 0;
 }
