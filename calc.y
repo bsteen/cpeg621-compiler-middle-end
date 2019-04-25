@@ -8,6 +8,7 @@
 #include <string.h>
 #include "basic-block.h"
 #include "calc.h"
+#include "c-code.h"
 
 int yylex(void);					// Will be generated in lex.yy.c by flex
 
@@ -285,8 +286,8 @@ int main(int argc, char *argv[])
 	bb_close_file(bb_file_name);
 	
 	// Generate runnable C code from frontend TAC and base block code
-	gen_c_code(frontend_tac_name, "Output/tac-frontend.c");
-	gen_c_code(bb_file_name, "Output/tac-basic-block.c");
+	gen_c_code(frontend_tac_name, "Output/c-frontend.c");
+	gen_c_code(bb_file_name, "Output/c-basic-block.c");
 
 	return 0;
 }

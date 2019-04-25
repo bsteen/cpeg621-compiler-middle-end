@@ -1,7 +1,18 @@
+// Benjamin Steenkamer
+// CPEG 621 Lab 3 - A Calculator Compiler Middle End
+
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include "calc.h"
+
+#include "calc.h"		// To get calc compiler global constants/defines
+#include "c-code.h"
+
+int num_temp_vars;				// Number of temp vars in use
+int num_user_vars;				// Number of user variables in use
+int num_user_vars_wo_def;		// Number of user variables that didn't have declarations
+char user_vars[MAX_USR_NUM_VARS][MAX_USR_VAR_NAME_LEN + 1];			// List of all unique user vars in proper
+char user_vars_wo_def[MAX_USR_NUM_VARS][MAX_USR_VAR_NAME_LEN + 1];	// List of user vars used w/o definition
 
 void init_c_code()
 {
