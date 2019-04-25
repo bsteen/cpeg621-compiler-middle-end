@@ -7,10 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "basic-block.h"
-
-#define MAX_USR_NUM_VARS 		128
-#define MAX_USR_VAR_NAME_LEN	64
-#define MAX_NESTED_IFS			2
+#include "calc.h"
 
 int yylex(void);					// Will be generated in lex.yy.c by flex
 
@@ -21,7 +18,6 @@ void gen_tac_assign(char *var, char *expr);
 char* gen_tac_expr(char *one, char *op, char *three);
 void gen_tac_if(char *cond_expr);
 void gen_tac_else(char *expr);
-void track_user_var(char *var);
 void yyerror(const char *);
 
 int inside_if1 = 0;					// For tracking nest of level of if-statements
@@ -80,7 +76,7 @@ calc :
 
 expr :
 	INTEGER				{ $$ = $1; }
-	| VARIABLE        	{ $$ = lc($1); track_user_var(lc($1)); }
+	| VARIABLE        	{ $$ = lc($1); track_user_var(lc($1), 0); }
 	| VARIABLE '=' expr	{ $$ = lc($1); gen_tac_assign(lc($1), $3); my_free($3); }
 	| expr '+' expr		{ $$ = gen_tac_expr($1, "+", $3); my_free($1); my_free($3); }
 	| expr '-' expr		{ $$ = gen_tac_expr($1, "-", $3); my_free($1); my_free($3); }
@@ -132,7 +128,7 @@ char* lc(char *str)
 // For case where variable is being assigned an expression
 void gen_tac_assign(char * var, char * expr)
 {
-	track_user_var(var);
+	track_user_var(var, 1);
 
 	char tac_buf[MAX_USR_VAR_NAME_LEN * 4];
 	sprintf(tac_buf, "%s = %s;\n", var, expr);
@@ -241,38 +237,6 @@ void gen_tac_else(char *expr)
 	return;
 }
 
-// Records all first appearances of user variables for use in C code generation
-// If variable is not being defined and hasn't been used before, add it to list of uninitialized variables
-void track_user_var(char *var)
-{
-	// Check if variable has been recorded before
-	int i;
-	for(i = 0; i < num_user_vars; i++)
-	{
-		if(strcmp(user_vars[i], var) == 0)
-		{
-			return; // If the variable was already recorded, don't need to record it again
-		}
-	}
-
-	// Check if variable is valid
-	if(num_user_vars >= MAX_USR_NUM_VARS)
-	{
-		yyerror("Max number of user variables reached");
-		exit(1);	// Exit since variable (and therefor the entire program) is not valid
-	}
-	else if (strlen(var) > MAX_USR_VAR_NAME_LEN)
-	{
-		yyerror("Variable name too long");
-		exit(1); 	// Exit since variable (and therefor the entire program) is not valid
-	}
-
-	strcpy(user_vars[num_user_vars], var);
-	num_user_vars++;
-
-	return;
-}
-
 void yyerror(const char *s)
 {
 	printf("%s\n", s);
@@ -306,8 +270,10 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
-	char * bb_file_name = "Output/basic-block.txt";
+	char * bb_file_name = "Output/tac-basic-block.txt";
 	bb_init_file(bb_file_name);
+	
+	init_c_code();
 
 	// Read in the input program and parse the tokens
 	// Also rights out frontend TAC to file
@@ -317,6 +283,10 @@ int main(int argc, char *argv[])
 	fclose(yyin);
 	fclose(tac_file);
 	bb_close_file(bb_file_name);
+	
+	// Generate runnable C code from frontend TAC and base block code
+	gen_c_code(frontend_tac_name, "Output/tac-frontend.c");
+	gen_c_code(bb_file_name, "Output/tac-basic-block.c");
 
 	return 0;
 }
