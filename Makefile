@@ -3,12 +3,10 @@
 #
 # TO DO:
 # Implement SSA
-#	Rename variable
 #	Phi insertion
-#		Case where assigned value inside if/else then read or written to in another if else later
 #		Single if/else
 #		Nested if/else
-#	Finished rename variables inside phi function
+#	Rename variable +  inside phi function
 # Sweep to remove empty basic blocks
 # Verify all features
 #	Test O4 vs normal speed
