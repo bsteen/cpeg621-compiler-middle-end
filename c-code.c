@@ -10,8 +10,8 @@
 
 int num_user_vars;				// Number of user variables in use
 int num_user_vars_wo_def;		// Number of user variables that didn't have declarations
-char user_vars[MAX_USR_NUM_VARS][MAX_USR_VAR_NAME_LEN + 1];			// List of all unique user vars in proper
-char user_vars_wo_def[MAX_USR_NUM_VARS][MAX_USR_VAR_NAME_LEN + 1];	// List of user vars used w/o definition
+char user_vars[MAX_NUM_VARS][MAX_USR_VAR_NAME_LEN + 1];			// List of all unique user vars in proper
+char user_vars_wo_def[MAX_NUM_VARS][MAX_USR_VAR_NAME_LEN + 1];	// List of user vars used w/o definition
 
 void init_c_code()
 {
@@ -36,14 +36,14 @@ void track_user_var(char *var, int assigned)
 	}
 
 	// Check if variable is valid
-	if(num_user_vars >= MAX_USR_NUM_VARS)
+	if(num_user_vars >= MAX_NUM_VARS)
 	{
-		printf("Max number of user variables reached (%d)\n", MAX_USR_NUM_VARS);
+		printf("Max number of user variables reached (%d)\n", MAX_NUM_VARS);
 		exit(1);	// Exit since variable (and therefor the entire program) is not valid
 	}
 	else if (strlen(var) > MAX_USR_VAR_NAME_LEN)
 	{
-		printf("Variable name (%s) too long: %lu > MAX_USR_VAR_NAME_LEN (%d)\n", var, strlen(var), MAX_USR_NUM_VARS);
+		printf("Variable name (%s) too long: %lu > MAX_USR_VAR_NAME_LEN (%d)\n", var, strlen(var), MAX_USR_VAR_NAME_LEN);
 		exit(1); 	// Exit since variable (and therefor the entire program) is not valid
 	}
 

@@ -10,7 +10,6 @@
 #include "basic-block.h"
 #include "calc.h"
 #include "c-code.h"
-#include "ssa.h"
 
 int yylex(void);					// Will be generated in lex.yy.c by flex
 
@@ -179,10 +178,10 @@ void gen_tac_if(char * cond_expr)
 		char err_buf[128];
 		sprintf(err_buf, "Max number of nested if-statements exceeded (MAX=%d)", MAX_NESTED_IFS);
 		yyerror(err_buf);
-		
+
 		exit(1);
 	}
-	
+
 	// Track entering of if-statements
 	if(inside_if1)
 	{
@@ -211,7 +210,7 @@ void gen_tac_else(char *expr)
 	for (; do_gen_else > 0; do_gen_else--)
 	{
 		if_depth--;
-		
+
 		if(expr != NULL)
 		{
 			fprintf(tac_file, "} else {\n%s = 0;\n}\n", expr);
@@ -220,7 +219,7 @@ void gen_tac_else(char *expr)
 		{
 			fprintf(tac_file, "} else {\n}\n");
 		}
-		
+
 		// Track exiting of if-statements
 		if(inside_if2 == 1)
 		{
@@ -271,24 +270,21 @@ int main(int argc, char *argv[])
 	}
 
 	char * bb_file_name = "Output/tac-basic-block.txt";
-	bb_init_file(bb_file_name);
-	
+	char * ssa_file_name = "Output/tac-ssa.txt";
+	bb_init_files(bb_file_name, ssa_file_name);
+
 	init_c_code();	// Initialize counters for var tracking (tracking results only used in C code gen)
 
 	// Read in the input program and parse the tokens, writes out frontend TAC to file
 	// and writes out basic block form of TAC
+	// At the same time, SSA form is also generated from the basic block form
 	yyparse();
 
 	// Close the files from initial TAC generation
 	fclose(yyin);
 	fclose(tac_file);
-	bb_close_file(bb_file_name);
-	
-	// Convert the basic block in SAA form and insert Phi functions where needed
-	char *ssa_file_name =  "Output/tac-saa.txt";
-	ssa_convert_to_ssa(bb_file_name, ssa_file_name);
-	ssa_insert_phis(ssa_file_name);
-	
+	bb_close_files(bb_file_name, ssa_file_name);
+
 	// Generate runnable C code from frontend TAC and basic block code
 	gen_c_code(frontend_tac_name, "Output/c-frontend.c", temp_var_ctr);
 	gen_c_code(bb_file_name, "Output/c-basic-block.c", temp_var_ctr);
