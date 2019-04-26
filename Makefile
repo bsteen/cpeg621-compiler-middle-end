@@ -3,6 +3,8 @@
 #
 # TO DO:
 # Implement SSA
+#	Variable renaming
+# 		Case where y=y goes to y_1 = y_1
 #	Phi insertion
 #		Single if/else
 #		Nested if/else

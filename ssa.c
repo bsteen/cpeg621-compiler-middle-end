@@ -10,7 +10,7 @@
 typedef struct var_info
 {
 	char var_name[MAX_USR_VAR_NAME_LEN + 1];
-	int num_defined;	// Number of times variable was defined (first use counts as one "definition")
+	int current_id;		// Number of times variable was defined
 } Var_info;
 
 Var_info vars[MAX_NUM_VARS];
@@ -38,8 +38,8 @@ void ssa_print_line(char *line)
 }
 
 // Find the variable entry in the variable info array
-// If the variable is not in the array, add it and send back new index
-int _get_var_index(char *var_name)
+// If the variable is not in the array, return -1
+int _ssa_get_var_index(char *var_name)
 {
 	int i;
 	for(i = 0; i < num_vars; i++)
@@ -50,78 +50,70 @@ int _get_var_index(char *var_name)
 		}
 	}
 
-	if(num_vars < MAX_NUM_VARS)
-	{
-		strcpy(vars[num_vars].var_name, var_name);
-		vars[num_vars].num_defined = 1;
-		num_vars++;
-
-		return num_vars - 1;
-	}
-	else
-	{
-		printf("Max number of variables in program exceeded (MAX_NUM_VARS=%d)\n", MAX_NUM_VARS);
-		exit(1);
-	}
+	return -1;
 }
 
 // Takes in a user variable name that is being READ from, determines if if a
 // phi function needs to be inserted, and it does, it will write it out to the SSA
-// file with the adjusted variable name for the assignment and phi function arguments
+// file with the changed variable names for the assignment and phi function arguments
 void _ssa_insert_phi(char *var_name)
 {
-	// When inserted, it also needs to update the var assignment counter
+	// WHEN INSERTED, IT ALSO NEEDS TO UPDATE THE VAR ASSIGNMENT COUNTER
 	// Case where assigned value inside if/else then read or written to in another if else later
+	//		chained like this several times
 	// Clear phi function variables when phi inserted into a guaranteed to run location
-
-	return;
-}
-
-// Takes in var name and returns malloc'd string containing it's new name
-// New name is old + "_#", determined by amount of previous assignments
-char *_ssa_rename_var(char *var_name)
-{
-	char *new_var_name = malloc(sizeof(char) * (MAX_USR_VAR_NAME_LEN + 16));
-
-	strcpy(new_var_name, var_name);	// FOR TESTING
-
-	/*
-	// Ignore temp vars, they don't need to be renamed
-
-	// Don't need to touch: "}", "} else {", "BB#:", "goto BB", newlines
-	if(strstr(line, "}") != NULL || strstr(line, ":") != NULL
-	   || strstr(line, "goto BB") != NULL || strcmp(line, "\n") == 0)
-	{
-		printf("Nothing to do: %s", line);
-		fprintf(saa_file_ptr, line);
-	}
-	else if(strstr(line, "if(") != NULL) // If statement case
-	{
-		char *cond = strtok(line, " ()");
-
-		if(cond[0] < 'A') // Ignore constants
-		{
-
-		}
-		else
-		{
-			printf("Nothing to do:\tif(%s) {\n", cond);
-			fprintf(saa_file_ptr, "\tif(%s) {\n", cond);
-		}
-	}
-	else
-	{
-		// Normal assignment case
-		// Ignore constants
-	}
-
-
+	
+	// For phi args
 	// Can't just be last x assignments for phi args (could be defined several times inside)
 	// Go back and find last assignment in each branch of if/else + plus last assignment before if/else
 
 	// If the variable was first defined inside an if-statement (x0) and then read outside it,
 	// Would need phi function and would choose between self and if value (would be x1 = phi(x0, x1))
-	*/
+
+	return;
+}
+
+// Takes in var name and returns malloc'd string containing it's new name in the
+// form var_name + "_#"; If it's being assigned a value, need to create
+// new name for var (increase number at end by one); If it is being read from, 
+// use last recorded number
+char* _ssa_rename_var(char *var_name, int assigned)
+{
+	char *new_var_name = malloc(sizeof(char) * (MAX_USR_VAR_NAME_LEN + 16));
+	strcpy(new_var_name, var_name);
+	
+	int index = _ssa_get_var_index(var_name);
+	int first_use = 0;
+	
+	// If var name wasn't found, add it to the array
+	if(index == -1)
+	{
+		if(num_vars < MAX_NUM_VARS)
+		{
+			strcpy(vars[num_vars].var_name, var_name);
+			vars[num_vars].current_id = 0;
+			
+			index = num_vars;
+			first_use = 1;
+			
+			num_vars++;
+		}
+		else
+		{
+			printf("Max number of variables in program exceeded (MAX_NUM_VARS=%d)\n", MAX_NUM_VARS);
+			exit(1);
+		}
+	}
+	
+	// When a variable is assigned a new value, it must be given a new, unique name
+	if(assigned && !first_use)
+	{
+		vars[index].current_id++;
+	}
+	
+	char ending[16];
+	sprintf(ending, "_%d", vars[index].current_id);
+	strcat(new_var_name, ending);
 
 	return new_var_name;
 }
@@ -153,7 +145,7 @@ void ssa_process_tac(char *tac_line)
 		else
 		{
 			_ssa_insert_phi(cond);
-			char * new_cond = _ssa_rename_var(cond);
+			char * new_cond = _ssa_rename_var(cond, 0);
 			
 			// printf("Wrote out: \tif(%s) {\n", new_cond);
 			fprintf(ssa_file_ptr, "\tif(%s) {\n", new_cond);
@@ -175,7 +167,7 @@ void ssa_process_tac(char *tac_line)
 			{
 				token++; 		// Move past the !
 				_ssa_insert_phi(token);
-				char * new_name =  _ssa_rename_var(token);
+				char *new_name =  _ssa_rename_var(token, 0);
 
 				strcat(new_line, "!");		// Re-add the ! operator
 				strcat(new_line, new_name);
@@ -198,12 +190,17 @@ void ssa_process_tac(char *tac_line)
 				{
 					// The first token in a TAC line is being assigned a value
 					// Don't need to insert phi function in this case
+					char * new_name;
 					if(token_counter > 1)
 					{
 						_ssa_insert_phi(token);
+						new_name = _ssa_rename_var(token, 0);
+					}
+					else
+					{
+						new_name = _ssa_rename_var(token, 1);
 					}
 					
-					char * new_name =  _ssa_rename_var(token);
 					strcat(new_line, new_name);
 					
 					free(new_name);
