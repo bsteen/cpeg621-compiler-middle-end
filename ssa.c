@@ -17,6 +17,7 @@ Var_info vars[MAX_NUM_VARS];
 int num_vars = 0;
 FILE *ssa_file_ptr;
 
+// Open the file that will contain the complete SSA form output
 void ssa_init_file(char *ssa_file_name)
 {
 	ssa_file_ptr = fopen(ssa_file_name, "w");
@@ -98,16 +99,23 @@ void ssa_rename_vars(char *tac_line)
 	return;
 }
 
+// Just prints out the line based in from the basic block generation
+void ssa_print_line(char *line)
+{
+	fprintf(ssa_file_ptr, line);
+	
+	return;
+}
+
+// Takes the front end TAC code that passed through the basic block generation
+// and processes it for SSA form; this includes inserting phi functions and 
+// renaming variables
 void ssa_process_tac(char *tac_line)
 {
 	return;
 }
 
-void ssa_print_line(char *line)
-{
-	return;
-}
-
+// Close file with the completed SSA form output
 void ssa_close_file(char *ssa_file_name)
 {
 	int error = fclose(ssa_file_ptr);
