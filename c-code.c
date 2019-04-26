@@ -151,11 +151,17 @@ void gen_c_code(char * input, char * output, int num_temp_vars)
 			char temp[MAX_USR_VAR_NAME_LEN * 4];
 			strcpy(temp, line_buf);
 
-			char *first = strtok(temp, " =*;");		// Lines with ** will always have 3 operands
-			char *second = strtok(NULL, " =*;");
-			char *third = strtok(NULL, " =*;");
-
-			sprintf(line_buf, "%s = (int)pow(%s, %s);\n", first, second, third);
+			char *first = strtok(temp, " \t=*;");		// Lines with ** will always have 3 operands
+			char *second = strtok(NULL, " \t=*;");
+			char *third = strtok(NULL, " \t=*;");
+			
+			if(line_buf[0] == '\t')		// Case for basic block code to maintain leading tab
+			{
+				sprintf(line_buf, "\t%s = (int)pow(%s, %s);\n", first, second, third);
+			}
+			else{
+				sprintf(line_buf, "%s = (int)pow(%s, %s);\n", first, second, third);
+			}
 		}
 
 		// Print c code line with line # label
