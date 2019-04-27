@@ -2,7 +2,7 @@
 # CPEG 621 Lab 3 - A Calculator Compiler Middle End
 #
 # TO DO:
-#Phi insertion
+# Phi insertion
 #	Phi function insertion
 #		_ssa_insert_phi
 #		Case where it is read from inside if/else in-between writes to itself

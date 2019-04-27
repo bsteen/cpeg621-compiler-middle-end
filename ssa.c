@@ -62,7 +62,7 @@ void _ssa_insert_phi_func(char *var_name)
 
 	//don't print phi function if there are no values in phi if/else arg array
 
-	// When printing phi func, include outside if/else phi agreement
+	// When printing phi func, include outside if/else phi agreement if not -1
 
 	// WHEN INSERTED, IT ALSO NEEDS TO UPDATE THE VAR ASSIGNMENT COUNTER
 	// Case where assigned value inside if/else then read or written to in another if else later
@@ -112,6 +112,59 @@ void _ssa_phi_arg_tracker(int var_index)
 			break;
 		default:	// Should never get here
 			printf("Invalid context for phi argument tracking\n");
+	}
+
+	return;
+}
+
+// Go through all the variables and store the phi argument values that were
+// recorded in the current if/else context to the main phi argument array for
+// that variable; then reset the tracked phi arg variable for the next context
+void _ssa_store_if_else_phi_args()
+{
+	int i;
+	for (i = 0; i < num_vars; i++)
+	{
+		int id_to_store = -1;
+
+		// Get the variable id to store in the main phi arg list and reset
+		// variable for use in next context
+		switch (if_else_context)
+		{
+			case IN_OUTER_IF:
+				id_to_store = vars[i].outer_if_phi_arg;
+				vars[i].outer_if_phi_arg = -1;
+				break;
+			case IN_INNER_IF:
+				id_to_store = vars[i].inner_if_phi_arg;
+				vars[i].inner_if_phi_arg = -1;
+				break;
+			case IN_INNER_ELSE:
+				id_to_store = vars[i].inner_else_phi_arg;
+				vars[i].inner_else_phi_arg = -1;
+				break;
+			case IN_OUTER_ELSE:
+				id_to_store = vars[i].outer_else_phi_arg;
+				vars[i].outer_else_phi_arg = -1;
+				break;
+			default:	// Should never get here
+				printf("Invalid context for phi argument storing \n");
+		}
+
+		// If -1, means variable not written to inside if/else context (no storing needed)
+		// Otherwise, store id to main phi args list
+		if (id_to_store != -1)
+		{
+			if(vars[i].num_phi_args_if_else >= MAX_NUM_PHI_ARGS)
+			{
+				printf("Exceeded max num phi args for %s (MAX_NUM_PHI_ARGS=%d)\n", vars[i].var_name, MAX_NUM_PHI_ARGS);
+				exit(1);
+			}
+
+			vars[i].phi_args_if_else[vars[i].num_phi_args_if_else] = id_to_store;	// Copy to main array of args										// Reset for next context
+			vars[i].num_phi_args_if_else++;
+			printf("Recorded phi arg: %s_%d\n", vars[i].var_name, vars[i].phi_args_if_else[vars[i].num_phi_args_if_else - 1]);
+		}
 	}
 
 	return;
@@ -182,59 +235,6 @@ char* _ssa_rename_var(char *var_name, int assigned, char *assigned_this_line)
 	// printf("Renamed %s to %s\n", var_name, new_var_name);
 
 	return strdup(new_var_name);
-}
-
-// Go through all the variables and store the phi argument values that were
-// recorded in the current if/else context to the main phi argument array for
-// that variable; then reset the tracked phi arg variable for the next context
-void _ssa_store_if_else_phi_args()
-{
-	int i;
-	for (i = 0; i < num_vars; i++)
-	{
-		int id_to_store = -1;
-
-		// Get the variable id to store in the main phi arg list and reset
-		// variable for use in next context
-		switch (if_else_context)
-		{
-			case IN_OUTER_IF:
-				id_to_store = vars[i].outer_if_phi_arg;
-				vars[i].outer_if_phi_arg = -1;
-				break;
-			case IN_INNER_IF:
-				id_to_store = vars[i].inner_if_phi_arg;
-				vars[i].inner_if_phi_arg = -1;
-				break;
-			case IN_INNER_ELSE:
-				id_to_store = vars[i].inner_else_phi_arg;
-				vars[i].inner_else_phi_arg = -1;
-				break;
-			case IN_OUTER_ELSE:
-				id_to_store = vars[i].outer_else_phi_arg;
-				vars[i].outer_else_phi_arg = -1;
-				break;
-			default:	// Should never get here
-				printf("Invalid context for phi argument storing \n");
-		}
-
-		// If -1, means variable not written to inside if/else context (no storing needed)
-		// Otherwise, store id to main phi args list
-		if (id_to_store != -1)
-		{
-			if(vars[i].num_phi_args_if_else >= MAX_NUM_PHI_ARGS)
-			{
-				printf("Exceeded max num phi args for %s (MAX_NUM_PHI_ARGS=%d)\n", vars[i].var_name, MAX_NUM_PHI_ARGS);
-				exit(1);
-			}
-
-			vars[i].phi_args_if_else[vars[i].num_phi_args_if_else] = id_to_store;	// Copy to main array of args										// Reset for next context
-			vars[i].num_phi_args_if_else++;
-			printf("Recorded phi arg: %s_%d\n", vars[i].var_name, vars[i].phi_args_if_else[vars[i].num_phi_args_if_else - 1]);
-		}
-	}
-
-	return;
 }
 
 // Updates the currently known context of the if/else statement
