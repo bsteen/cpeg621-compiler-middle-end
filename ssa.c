@@ -79,7 +79,7 @@ void _ssa_insert_phi(char *var_name)
 // use last recorded number
 char* _ssa_rename_var(char *var_name, int assigned, char *assigned_this_line)
 {
-	char *new_var_name = malloc(sizeof(char) * (MAX_USR_VAR_NAME_LEN + 16));
+	char new_var_name[MAX_USR_VAR_NAME_LEN + 16];
 	strcpy(new_var_name, var_name);
 
 	int index = _ssa_get_var_index(var_name);
@@ -130,7 +130,7 @@ char* _ssa_rename_var(char *var_name, int assigned, char *assigned_this_line)
 	
 	printf("Renamed %s to %s\n", var_name, new_var_name);
 
-	return new_var_name;
+	return strdup(new_var_name);
 }
 
 // Takes the front end TAC code that passed through the basic block generation
@@ -154,6 +154,8 @@ void ssa_process_tac(char *tac_line)
 		strtok(buffer, " \t()");		// Skip over if part
 		char * cond = strtok(NULL, " \t()");
 
+		// !var or !# wouldn't appear in conditional; would always be saved to temp first,
+		// then temp var would be in conditional
 		if(cond[0] == '_' || cond[0] < 'A')	// Don't need to do anything with temps or vars
 		{
 			// printf("temp or const in if: %s", tac_line);
@@ -180,16 +182,23 @@ void ssa_process_tac(char *tac_line)
 
 		while(token != NULL)
 		{
-			if(token[0] == '!')	// Unary operator case (!var name)
+			if(token[0] == '!')	// Unary operator case (!user_var, !temp, or !#)
 			{
-				token++; 		// Move past the !
-				_ssa_insert_phi(token);
-				char *new_name =  _ssa_rename_var(token, 0, assigned_this_line);
+				if(token[1] == '_' || token[1] < 'A')	// Don't need to change constant or temp
+				{
+					strcat(new_line, token);
+				}
+				else	// User var case (!user_var)
+				{
+					token++; 		// Move past the !
+					_ssa_insert_phi(token);
+					char *new_name =  _ssa_rename_var(token, 0, assigned_this_line);
 
-				strcat(new_line, "!");		// Re-add the ! operator
-				strcat(new_line, new_name);
+					strcat(new_line, "!");		// Re-add the ! operator
+					strcat(new_line, new_name);
 
-				free(new_name);
+					free(new_name);
+				}
 			}
 			else if(token[0] == '=' || token[0] < '0') // Operator case (=, +, -, *, /, **)
 			{

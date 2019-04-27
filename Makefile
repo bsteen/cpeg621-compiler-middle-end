@@ -4,7 +4,7 @@
 # TO DO:
 # Implement SSA
 #	Variable renaming
-# 		Case where y=y goes to y_1 = y_1
+# 		Check double nested
 #	Phi insertion
 #		Single if/else
 #		Nested if/else
