@@ -12,16 +12,17 @@
 typedef struct var_info
 {
 	char var_name[MAX_USR_VAR_NAME_LEN + 1];
-	int current_id;						// Number of times variable was defined
+	int current_id;				// Number of times variable was defined
 
 	// Used for phi function argument tracking
-	int outer_if_phi_arg;				// Current phi argument (var id) created in given context
+	int outer_if_phi_arg;						// Current phi argument (var id) created in given context
 	int inner_if_phi_arg;
 	int inner_else_phi_arg;
 	int outer_else_phi_arg;
-
-	int phi_args[MAX_NUM_PHI_ARGS];		// Array of all the finilized phi args
-	int num_phi_args;
+	int phi_args_if_else[MAX_NUM_PHI_ARGS];		// Array of finalized phi args from inside if/else
+	int num_phi_args_if_else;
+	
+	int outside_if_else_phi_arg;	// Tracks id of most recent write outside an if/else arg
 
 } Var_info;
 
@@ -49,14 +50,29 @@ int _ssa_get_var_index(char *var_name)
 // Takes in a user variable name that is being READ from, determines if if a
 // phi function needs to be inserted, and it does, it will write it out to the SSA
 // file with the changed variable names for the assignment and phi function arguments
-void _ssa_insert_phi(char *var_name)
+void _ssa_insert_phi_func(char *var_name)
 {
-	// SHOULD BE THE INDEX NOT NAME in arg
+	int index = _ssa_get_var_index(var_name);
+	
+	if (index == -1)
+	{
+		printf("%s read from for the first time, phi function not needed\n", var_name);
+		return;
+	}
+
+	//don't print phi function if there are no values in phi if/else arg array
+
+	// When printing phi func, include outside if/else phi agreement
 
 	// WHEN INSERTED, IT ALSO NEEDS TO UPDATE THE VAR ASSIGNMENT COUNTER
 	// Case where assigned value inside if/else then read or written to in another if else later
 	//		chained like this several times
 	// Clear phi function variables when phi inserted into a guaranteed to run location
+
+	// WHEN TO FORGET PHI ARGS????
+	// If phi function written outside an if/else statement, can forget all phi arguments??
+	
+	// Need to record assignment of phi function and whether it is inside or outside an if/else stmnt
 
 	// For phi args
 	// Can't just be last x assignments for phi args (could be defined several times inside)
@@ -68,10 +84,10 @@ void _ssa_insert_phi(char *var_name)
 	return;
 }
 
-// Record when a variable is written to INSIDE of a if/else statement
-// If it is the last write to that variables in the if/else context, it will need
-// to be added to the phi arguments list next time it is read outside the if/else context
-// _ssa_store_phi_args will handle this "exiting" storage
+// Record when a variable is written, either outside or inside if/else statement
+// If it's the last write to that variables in the if/else context, it will need
+// to be added to the if/else phi arguments list for use the next time it is read outside the if/else context
+// _ssa_store_if_else_phi_args will handle this "exiting" storage at a later time
 void _ssa_phi_arg_tracker(int var_index)
 {
 	// current_id has already been increased before calling this function,
@@ -90,6 +106,9 @@ void _ssa_phi_arg_tracker(int var_index)
 			break;
 		case IN_OUTER_ELSE:
 			vars[var_index].outer_else_phi_arg = vars[var_index].current_id;
+			break;
+		case OUTSIDE_IF_ELSE:
+			vars[var_index].outside_if_else_phi_arg = vars[var_index].current_id;
 			break;
 		default:	// Should never get here
 			printf("Invalid context for phi argument tracking\n");
@@ -121,7 +140,8 @@ char* _ssa_rename_var(char *var_name, int assigned, char *assigned_this_line)
 			vars[num_vars].inner_if_phi_arg = -1;
 			vars[num_vars].inner_else_phi_arg = -1;
 			vars[num_vars].outer_else_phi_arg = -1;
-			vars[num_vars].num_phi_args = 0;
+			vars[num_vars].num_phi_args_if_else = 0;
+			vars[num_vars].outside_if_else_phi_arg = -1;
 
 			index = num_vars;
 			num_vars++;
@@ -142,10 +162,7 @@ char* _ssa_rename_var(char *var_name, int assigned, char *assigned_this_line)
 		strcpy(assigned_this_line, var_name);			// Make that it was assigned this line
 		sprintf(ending, "_%d", vars[index].current_id);	// Create the new ID to be appended
 
-		if(if_else_context != OUTSIDE_IF_ELSE)
-		{
-			_ssa_phi_arg_tracker(index);	// If inside an if or else, need to track assignment
-		}
+		_ssa_phi_arg_tracker(index);					// Need to track assignment
 	}
 	else
 	{
@@ -170,7 +187,7 @@ char* _ssa_rename_var(char *var_name, int assigned, char *assigned_this_line)
 // Go through all the variables and store the phi argument values that were
 // recorded in the current if/else context to the main phi argument array for
 // that variable; then reset the tracked phi arg variable for the next context
-void _ssa_store_phi_args()
+void _ssa_store_if_else_phi_args()
 {
 	int i;
 	for (i = 0; i < num_vars; i++)
@@ -205,15 +222,15 @@ void _ssa_store_phi_args()
 		// Otherwise, store id to main phi args list
 		if (id_to_store != -1)
 		{
-			if(vars[i].num_phi_args >= MAX_NUM_PHI_ARGS)
+			if(vars[i].num_phi_args_if_else >= MAX_NUM_PHI_ARGS)
 			{
 				printf("Exceeded max num phi args for %s (MAX_NUM_PHI_ARGS=%d)\n", vars[i].var_name, MAX_NUM_PHI_ARGS);
 				exit(1);
 			}
 
-			vars[i].phi_args[vars[i].num_phi_args] = id_to_store;	// Copy to main array of args										// Reset for next context
-			vars[i].num_phi_args++;
-			printf("Recorded phi arg: %s_%d\n", vars[i].var_name, vars[i].phi_args[vars[i].num_phi_args - 1]);
+			vars[i].phi_args_if_else[vars[i].num_phi_args_if_else] = id_to_store;	// Copy to main array of args										// Reset for next context
+			vars[i].num_phi_args_if_else++;
+			printf("Recorded phi arg: %s_%d\n", vars[i].var_name, vars[i].phi_args_if_else[vars[i].num_phi_args_if_else - 1]);
 		}
 	}
 
@@ -237,22 +254,22 @@ void ssa_if_else_context_tracker(int new_context)
 	else if(new_context == IN_INNER_ELSE && if_else_context == IN_INNER_IF)
 	{
 		printf("Exited inner if, storing phi args\n");
-		_ssa_store_phi_args();
+		_ssa_store_if_else_phi_args();
 	}
 	else if(new_context == IN_OUTER_IF && if_else_context == IN_INNER_ELSE)
 	{
 		printf("Exited inner else, storing phi args\n");
-		_ssa_store_phi_args();
+		_ssa_store_if_else_phi_args();
 	}
 	else if(new_context == IN_OUTER_ELSE && if_else_context == IN_OUTER_IF)
 	{
 		printf("Exited outer if, storing phi args\n");
-		_ssa_store_phi_args();
+		_ssa_store_if_else_phi_args();
 	}
 	else if(new_context == OUTSIDE_IF_ELSE && if_else_context == IN_OUTER_ELSE)
 	{
 		printf("Exited outer else, storing phi args\n");
-		_ssa_store_phi_args();
+		_ssa_store_if_else_phi_args();
 	}
 	else	// Should never get here
 	{
@@ -292,7 +309,7 @@ void ssa_process_tac(char *tac_line)
 		}
 		else
 		{
-			_ssa_insert_phi(cond);
+			_ssa_insert_phi_func(cond);
 			char * new_cond = _ssa_rename_var(cond, 0, assigned_this_line);
 
 			printf("Wrote out: \tif(%s) {\n", new_cond);
@@ -320,7 +337,7 @@ void ssa_process_tac(char *tac_line)
 				else	// User var case (!user_var)
 				{
 					token++; 		// Move past the !
-					_ssa_insert_phi(token);
+					_ssa_insert_phi_func(token);
 					char *new_name =  _ssa_rename_var(token, 0, assigned_this_line);
 
 					strcat(new_line, "!");		// Re-add the ! operator
@@ -343,15 +360,14 @@ void ssa_process_tac(char *tac_line)
 				}
 				else
 				{
-					// The first token in a TAC line is being assigned a value
-					// Don't need to insert phi function in this case
+					// Variable being read from, may need to insert phi function
 					char * new_name;
 					if(token_counter > 1)
 					{
-						_ssa_insert_phi(token);
+						_ssa_insert_phi_func(token);
 						new_name = _ssa_rename_var(token, 0, assigned_this_line);
 					}
-					else
+					else // The first token in a TAC line is being assigned a value (no phi needed)
 					{
 						new_name = _ssa_rename_var(token, 1, assigned_this_line);
 					}
