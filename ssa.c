@@ -21,7 +21,7 @@ typedef struct var_info
 	int outer_else_phi_arg;
 	int phi_args_if_else[MAX_NUM_PHI_ARGS];		// Array of finalized phi args from inside if/else
 	int num_phi_args_if_else;
-	
+
 	int outside_if_else_phi_arg;	// Tracks id of most recent write outside an if/else arg
 
 } Var_info;
@@ -45,43 +45,6 @@ int _ssa_get_var_index(char *var_name)
 	}
 
 	return -1;
-}
-
-// Takes in a user variable name that is being READ from, determines if if a
-// phi function needs to be inserted, and it does, it will write it out to the SSA
-// file with the changed variable names for the assignment and phi function arguments
-void _ssa_insert_phi_func(char *var_name)
-{
-	int index = _ssa_get_var_index(var_name);
-	
-	if (index == -1)
-	{
-		printf("%s read from for the first time, phi function not needed\n", var_name);
-		return;
-	}
-
-	//don't print phi function if there are no values in phi if/else arg array
-
-	// When printing phi func, include outside if/else phi agreement if not -1
-
-	// WHEN INSERTED, IT ALSO NEEDS TO UPDATE THE VAR ASSIGNMENT COUNTER
-	// Case where assigned value inside if/else then read or written to in another if else later
-	//		chained like this several times
-	// Clear phi function variables when phi inserted into a guaranteed to run location
-
-	// WHEN TO FORGET PHI ARGS????
-	// If phi function written outside an if/else statement, can forget all phi arguments??
-	
-	// Need to record assignment of phi function and whether it is inside or outside an if/else stmnt
-
-	// For phi args
-	// Can't just be last x assignments for phi args (could be defined several times inside)
-	// Go back and find last assignment in each branch of if/else + plus last assignment before if/else
-
-	// If the variable was first defined inside an if-statement (x0) and then read outside it,
-	// Would need phi function and would choose between self and if value (would be x1 = phi(x0, x1))
-
-	return;
 }
 
 // Record when a variable is written, either outside or inside if/else statement
@@ -113,6 +76,68 @@ void _ssa_phi_arg_tracker(int var_index)
 		default:	// Should never get here
 			printf("Invalid context for phi argument tracking\n");
 	}
+
+	return;
+}
+
+// Takes in a user variable name that is being READ from, determines if if a
+// phi function needs to be inserted, and if it does, it will write it out to the SSA
+// file
+void _ssa_insert_phi_func(char *var_name)
+{
+	int index = _ssa_get_var_index(var_name);
+
+	if (index == -1)
+	{
+		printf("%s read from for the first time, phi function not needed\n", var_name);
+		return;
+	}
+	else if(vars[index].num_phi_args_if_else == 0)
+	{
+		printf("Phi function for %s not needed now\n", var_name);
+		return;
+	}
+
+	// Start the phi function insertion
+	vars[index].current_id++;	// Phi function counts as assignment => need new var ID
+	fprintf(ssa_file_ptr, "%s_%d = phi(", var_name, vars[index].current_id);
+	printf("%s_%d = phi(", var_name, vars[index].current_id);
+
+	// Write out outside if/else phi argument first, if it has one
+	if(vars[index].outside_if_else_phi_arg != -1)
+	{
+		fprintf(ssa_file_ptr, "%s_%d, ", var_name, vars[index].outside_if_else_phi_arg);
+		printf("%s_%d, ", var_name, vars[index].outside_if_else_phi_arg);
+	}
+
+	// Print out phi args from inside if/elses
+	int i;
+	for(i = 0; i < vars[index].num_phi_args_if_else - 1; i++)
+	{
+		fprintf(ssa_file_ptr, "%s_%d, ", var_name, vars[index].phi_args_if_else[i]);
+		printf("%s_%d, ", var_name, vars[index].phi_args_if_else[i]);
+	}
+
+	// Close phi function
+	fprintf(ssa_file_ptr, "%s_%d);\n", var_name, vars[index].phi_args_if_else[i]);
+	printf("%s_%d);\n", var_name, vars[index].phi_args_if_else[i]);
+		
+	// Case where assigned value inside if/else then read or written to in another if else later
+	//		chained like this several times
+	
+	// Case where it is read from inside if/else in-between writes to itself
+
+	// WHEN TO FORGET PHI ARGS????
+	// If phi function written outside an if/else statement, can forget all phi arguments??
+	// Clear phi function variables when phi inserted into a guaranteed to run location
+
+	// Need to record assignment of phi function and whether it is inside or outside an if/else stmnt
+
+	// If the variable was first defined inside an if-statement (x0) and then read outside it,
+	// Would need phi function and would choose between self and if value (would be x1 = phi(x0, x1))
+	
+	// Since phi function counts as an assignment, need to track assigned variable id
+	_ssa_phi_arg_tracker(index);
 
 	return;
 }
