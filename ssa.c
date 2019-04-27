@@ -29,7 +29,7 @@ void ssa_init_file(char *ssa_file_name)
 	}
 }
 
-// Just prints out the line based in from the basic block generation
+// Just prints out the line passed in from the basic block generation
 void ssa_print_line(char *line)
 {
 	fprintf(ssa_file_ptr, line);
@@ -62,7 +62,7 @@ void _ssa_insert_phi(char *var_name)
 	// Case where assigned value inside if/else then read or written to in another if else later
 	//		chained like this several times
 	// Clear phi function variables when phi inserted into a guaranteed to run location
-	
+
 	// For phi args
 	// Can't just be last x assignments for phi args (could be defined several times inside)
 	// Go back and find last assignment in each branch of if/else + plus last assignment before if/else
@@ -75,16 +75,15 @@ void _ssa_insert_phi(char *var_name)
 
 // Takes in var name and returns malloc'd string containing it's new name in the
 // form var_name + "_#"; If it's being assigned a value, need to create
-// new name for var (increase number at end by one); If it is being read from, 
+// new name for var (increase number at end by one); If it is being read from,
 // use last recorded number
-char* _ssa_rename_var(char *var_name, int assigned)
+char* _ssa_rename_var(char *var_name, int assigned, char *assigned_this_line)
 {
 	char *new_var_name = malloc(sizeof(char) * (MAX_USR_VAR_NAME_LEN + 16));
 	strcpy(new_var_name, var_name);
-	
+
 	int index = _ssa_get_var_index(var_name);
-	int first_use = 0;
-	
+
 	// If var name wasn't found, add it to the array
 	if(index == -1)
 	{
@@ -92,10 +91,9 @@ char* _ssa_rename_var(char *var_name, int assigned)
 		{
 			strcpy(vars[num_vars].var_name, var_name);
 			vars[num_vars].current_id = 0;
-			
+
 			index = num_vars;
-			first_use = 1;
-			
+
 			num_vars++;
 		}
 		else
@@ -104,16 +102,33 @@ char* _ssa_rename_var(char *var_name, int assigned)
 			exit(1);
 		}
 	}
-	
-	// When a variable is assigned a new value, it must be given a new, unique name
-	if(assigned && !first_use)
-	{
-		vars[index].current_id++;
-	}
-	
+
 	char ending[16];
-	sprintf(ending, "_%d", vars[index].current_id);
+
+	// When a variable is assigned a new value, it must be given a new, unique name
+	if(assigned)
+	{
+		vars[index].current_id++;						// Increase to get new, unique ID
+		strcpy(assigned_this_line, var_name);			// Make that it was assigned this line
+		sprintf(ending, "_%d", vars[index].current_id);	// Create the new ID to be appended
+	}
+	else
+	{
+		// If the variable is being assigned to itself, need to use last ID for variable's
+		// appearance(s) on right hand side of assignment b/c the ID was already increased this line
+		if(strcmp(var_name, assigned_this_line) == 0)
+		{
+			sprintf(ending, "_%d", vars[index].current_id - 1);
+		}
+		else	// Normal variable read case, just use current ID
+		{
+			sprintf(ending, "_%d", vars[index].current_id);
+		}
+	}
+
 	strcat(new_var_name, ending);
+	
+	printf("Renamed %s to %s\n", var_name, new_var_name);
 
 	return new_var_name;
 }
@@ -130,6 +145,8 @@ void ssa_process_tac(char *tac_line)
 	// Tokenize TAC input
 	char buffer[MAX_USR_VAR_NAME_LEN * 4];
 	strcpy(buffer, tac_line);
+	char assigned_this_line[MAX_USR_VAR_NAME_LEN + 1];	// Variable that was assigned value this TAC line
+	strcpy(assigned_this_line, "");
 
 	// If-statement case
 	if(strstr(buffer, "if(") != NULL)
@@ -145,33 +162,33 @@ void ssa_process_tac(char *tac_line)
 		else
 		{
 			_ssa_insert_phi(cond);
-			char * new_cond = _ssa_rename_var(cond, 0);
-			
+			char * new_cond = _ssa_rename_var(cond, 0, assigned_this_line);
+
 			// printf("Wrote out: \tif(%s) {\n", new_cond);
 			fprintf(ssa_file_ptr, "\tif(%s) {\n", new_cond);
-			
+
 			free(new_cond);
 		}
 	}
 	else	// Assignment cases: a = (!)b; a = b op c;
-	{	
+	{
 		char new_line[MAX_USR_VAR_NAME_LEN * 4];
 		strcpy(new_line, "\t");		// Must COPY in first, not strcat (first index may not be NULL)
-		
+
 		char *token = strtok(buffer, " \t;\n");
 		int token_counter = 1;
-		
+
 		while(token != NULL)
-		{		
+		{
 			if(token[0] == '!')	// Unary operator case (!var name)
 			{
 				token++; 		// Move past the !
 				_ssa_insert_phi(token);
-				char *new_name =  _ssa_rename_var(token, 0);
+				char *new_name =  _ssa_rename_var(token, 0, assigned_this_line);
 
 				strcat(new_line, "!");		// Re-add the ! operator
 				strcat(new_line, new_name);
-				
+
 				free(new_name);
 			}
 			else if(token[0] == '=' || token[0] < '0') // Operator case (=, +, -, *, /, **)
@@ -194,23 +211,23 @@ void ssa_process_tac(char *tac_line)
 					if(token_counter > 1)
 					{
 						_ssa_insert_phi(token);
-						new_name = _ssa_rename_var(token, 0);
+						new_name = _ssa_rename_var(token, 0, assigned_this_line);
 					}
 					else
 					{
-						new_name = _ssa_rename_var(token, 1);
+						new_name = _ssa_rename_var(token, 1, assigned_this_line);
 					}
-					
+
 					strcat(new_line, new_name);
-					
+
 					free(new_name);
 				}
 			}
-			
+
 			token = strtok(NULL, " \t;\n");
 			token_counter++;
 		}
-		
+
 		strcat(new_line, ";\n");
 		// printf("Wrote out: %s", new_line);
 		fprintf(ssa_file_ptr, "%s", new_line);
