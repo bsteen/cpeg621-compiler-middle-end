@@ -37,7 +37,7 @@ void bb_init_files(char * bb_file_name, char * ssa_file_name)
 }
 
 // Prints out the TAC generated in the calc.y file into basic block file
-// Sends line to SSA module for printing in SSA's output file
+// Sends line to SSA module for processing and printing in SSA's output file
 void bb_print_tac(char *tac)
 {
 	char buffer[MAX_USR_VAR_NAME_LEN * 4];
@@ -67,7 +67,7 @@ void _bb_print_next_blk_tag()
 
 // Prints out the end of the basic block, which will contain an if/else
 // statement that splits the flow (and ends the current basic block)
-// Sends lines to SSA module for printing in SSA's output file
+// Sends if statement conditional to SSA module for processing and printing in SSA's output file
 void bb_print_if_else_block_end(char *if_stmt, int entering_nested_if)
 {
 	if(entering_nested_if)					// Just entering nested if/else
@@ -79,7 +79,7 @@ void bb_print_if_else_block_end(char *if_stmt, int entering_nested_if)
 
 	char buffer[MAX_USR_VAR_NAME_LEN * 4];	// Enough room for variable and gotos
 
-	sprintf(buffer, "\t%s", if_stmt);	// Print out if statement
+	sprintf(buffer, "\t%s", if_stmt);		// Print out "if (...) {" statement
 	fprintf(bb_file_ptr, buffer);
 	ssa_process_tac(buffer);
 
@@ -97,7 +97,7 @@ void bb_print_if_else_block_end(char *if_stmt, int entering_nested_if)
 }
 
 // Prints out the basic block that contains the else-statement's logic
-// Sends lines to SSA module for printing in SSA's output file
+// Sends lines to SSA module for processing (potentially)  and printing in SSA's output file
 void bb_print_else_block(char * var_name, int leaving_outer_if)
 {
 	// printf("%s: leaving_outer_if=%d nested=%d\n", var_name, leaving_outer_if, is_nested);
@@ -115,12 +115,12 @@ void bb_print_else_block(char * var_name, int leaving_outer_if)
 		fprintf(bb_file_ptr, buffer);
 		ssa_print_line(buffer);
 
-		is_nested = 0;	// No longer in the next if/else statements
+		is_nested = 0;	// No longer in the nested if/else statements
 	}
 	else
 	{
 		// NEED next_block_tag + 1 to step over else block tag and get to statement after the else-statement
-		sprintf(buffer, "\tgoto BB%d;\n", next_block_tag + 1); 	// goto at end of if logic
+		sprintf(buffer, "\tgoto BB%d;\n", next_block_tag + 1); 	// goto at end of If logic
 		fprintf(bb_file_ptr, buffer);
 		ssa_print_line(buffer);
 
@@ -131,12 +131,12 @@ void bb_print_else_block(char * var_name, int leaving_outer_if)
 	{
 		sprintf(buffer, "\t%s = 0;\n", var_name);
 		fprintf(bb_file_ptr, buffer);
-		ssa_print_line(buffer);
+		ssa_process_tac(buffer);
 	}
 
 	// Jump to first statement outside the completed else-statement
 	sprintf(buffer, "\tgoto BB%d;\n", next_block_tag);
-	fprintf(bb_file_ptr, buffer);	// goto at end of else logic
+	fprintf(bb_file_ptr, buffer);	// goto at end of Else logic
 	ssa_print_line(buffer);
 
 	_bb_print_next_blk_tag();

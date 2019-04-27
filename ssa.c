@@ -128,7 +128,7 @@ char* _ssa_rename_var(char *var_name, int assigned, char *assigned_this_line)
 
 	strcat(new_var_name, ending);
 	
-	printf("Renamed %s to %s\n", var_name, new_var_name);
+	// printf("Renamed %s to %s\n", var_name, new_var_name);
 
 	return strdup(new_var_name);
 }
@@ -158,7 +158,7 @@ void ssa_process_tac(char *tac_line)
 		// then temp var would be in conditional
 		if(cond[0] == '_' || cond[0] < 'A')	// Don't need to do anything with temps or vars
 		{
-			// printf("temp or const in if: %s", tac_line);
+			printf("temp or const in if: %s", tac_line);
 			ssa_print_line(tac_line);
 		}
 		else
@@ -166,7 +166,7 @@ void ssa_process_tac(char *tac_line)
 			_ssa_insert_phi(cond);
 			char * new_cond = _ssa_rename_var(cond, 0, assigned_this_line);
 
-			// printf("Wrote out: \tif(%s) {\n", new_cond);
+			printf("Wrote out: \tif(%s) {\n", new_cond);
 			fprintf(ssa_file_ptr, "\tif(%s) {\n", new_cond);
 
 			free(new_cond);
@@ -238,7 +238,7 @@ void ssa_process_tac(char *tac_line)
 		}
 
 		strcat(new_line, ";\n");
-		// printf("Wrote out: %s", new_line);
+		printf("Wrote out: %s", new_line);
 		fprintf(ssa_file_ptr, "%s", new_line);
 	}
 
