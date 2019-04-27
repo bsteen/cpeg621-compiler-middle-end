@@ -15,12 +15,8 @@ typedef struct var_info
 	int current_id;		// Number of times variable was defined
 	
 	// Used for phi function argument tracking
-	int outer_if_phi_arg;
-	int outer_else_phi_arg;
-	int inner_if_phi_arg;
-	int inner_else_phi_arg;
-	
-	int phi_args[MAX_NUM_PHI_ARGS];
+	int tracked_phi_arg;				// Current phi argument created in given context
+	int phi_args[MAX_NUM_PHI_ARGS];		// Array of all the finilized phi args
 	int num_phi_args;
 	
 } Var_info;
@@ -29,26 +25,6 @@ Var_info vars[MAX_NUM_VARS];
 int num_vars = 0;
 int if_else_context = OUTSIDE_IF_ELSE;
 FILE *ssa_file_ptr;
-
-// Open the file that will contain the complete SSA form output
-void ssa_init_file(char *ssa_file_name)
-{
-	ssa_file_ptr = fopen(ssa_file_name, "w");
-
-	if(ssa_file_ptr == NULL)
-	{
-		printf("Couldn't open %s\n", ssa_file_name);
-		exit(1);
-	}
-}
-
-// Just prints out the line passed in from the basic block generation
-void ssa_print_line(char *line)
-{
-	fprintf(ssa_file_ptr, line);
-
-	return;
-}
 
 // Find the variable entry in the variable info array
 // If the variable is not in the array, return -1
@@ -133,8 +109,10 @@ void _ssa_phi_arg_tracker(int var_index)
 // Takes in a user variable name that is being READ from, determines if if a
 // phi function needs to be inserted, and it does, it will write it out to the SSA
 // file with the changed variable names for the assignment and phi function arguments
-void _ssa_insert_phi(char *var_name)
+void _ssa_insert_phi(char *var_name)	
 {
+	// SHOULD BE THE INDEX NOT NAME in arg
+	
 	// WHEN INSERTED, IT ALSO NEEDS TO UPDATE THE VAR ASSIGNMENT COUNTER
 	// Case where assigned value inside if/else then read or written to in another if else later
 	//		chained like this several times
@@ -168,9 +146,10 @@ char* _ssa_rename_var(char *var_name, int assigned, char *assigned_this_line)
 		{
 			strcpy(vars[num_vars].var_name, var_name);
 			vars[num_vars].current_id = 0;
+			vars[num_vars].tracked_phi_arg = -1;
+			vars[num_vars].num_phi_args = 0;
 
 			index = num_vars;
-
 			num_vars++;
 		}
 		else
@@ -360,6 +339,26 @@ void ssa_process_tac(char *tac_line)
 	}
 
 	return;
+}
+
+// Just prints out the line passed in from the basic block generation
+void ssa_print_line(char *line)
+{
+	fprintf(ssa_file_ptr, line);
+
+	return;
+}
+
+// Open the file that will contain the complete SSA form output
+void ssa_init_file(char *ssa_file_name)
+{
+	ssa_file_ptr = fopen(ssa_file_name, "w");
+
+	if(ssa_file_ptr == NULL)
+	{
+		printf("Couldn't open %s\n", ssa_file_name);
+		exit(1);
+	}
 }
 
 // Close file with the completed SSA form output
