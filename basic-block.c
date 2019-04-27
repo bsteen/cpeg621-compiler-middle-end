@@ -75,6 +75,11 @@ void bb_print_if_else_block_end(char *if_stmt, int entering_nested_if)
 		outer_else_tag = next_block_tag;	// Tag used previously is outer else's tag
 		next_block_tag++;					// So next block doesn't reuse the else's tag
 		is_nested = 1;
+		ssa_if_else_context_tracker(IN_INNER_IF);
+	}
+	else
+	{
+		ssa_if_else_context_tracker(IN_OUTER_IF);
 	}
 
 	char buffer[MAX_USR_VAR_NAME_LEN * 4];	// Enough room for variable and gotos
@@ -104,7 +109,9 @@ void bb_print_else_block(char * var_name, int leaving_outer_if)
 
 	char buffer[MAX_USR_VAR_NAME_LEN * 4];
 
-	if(is_nested && leaving_outer_if)	// Just exited outer if-statement of nested if/else structure
+	// Just exited outer if-statement of nested if/else structure
+	// Need to know if nested to choose correct basic block ID for end of else go to
+	if(is_nested && leaving_outer_if)
 	{
 		// DON'T need plus one to next_block_tag b/c next block will be outer else with SPECIAL TAG
 		sprintf(buffer, "\tgoto BB%d;\n", next_block_tag);	// goto at end of if-statement logic
@@ -117,7 +124,7 @@ void bb_print_else_block(char * var_name, int leaving_outer_if)
 
 		is_nested = 0;	// No longer in the nested if/else statements
 	}
-	else
+	else	// If not leaving outer if statement, then we are leaving a nested inner (nested) if statement
 	{
 		// NEED next_block_tag + 1 to step over else block tag and get to statement after the else-statement
 		sprintf(buffer, "\tgoto BB%d;\n", next_block_tag + 1); 	// goto at end of If logic
@@ -125,6 +132,17 @@ void bb_print_else_block(char * var_name, int leaving_outer_if)
 		ssa_print_line(buffer);
 
 		_bb_print_next_blk_tag();
+	}
+
+	// At this point, the if part of the if/else statement has been written,
+	// now entering the else part
+	if(!leaving_outer_if)	// Will be entering the inner else statement
+	{
+		ssa_if_else_context_tracker(IN_INNER_ELSE);
+	}
+	else	// Will be entering the outer else statement
+	{
+		ssa_if_else_context_tracker(IN_OUTER_ELSE);
 	}
 
 	if(var_name != NULL) // Print else assignment to 0; If NULL, no value assigned to conditional result
@@ -140,6 +158,15 @@ void bb_print_else_block(char * var_name, int leaving_outer_if)
 	ssa_print_line(buffer);
 
 	_bb_print_next_blk_tag();
+
+	if(!leaving_outer_if)	// If not leaving outer if/else, must be leaving the inner if/else
+	{
+		ssa_if_else_context_tracker(IN_OUTER_IF);
+	}
+	else	// Leaving outer if/else statement (regardless if a nested if/else was inside it)
+	{
+		ssa_if_else_context_tracker(OUTSIDE_IF_ELSE);
+	}
 
 	return;
 }

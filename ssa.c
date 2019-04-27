@@ -7,14 +7,27 @@
 #include "calc.h"
 #include "ssa.h"
 
+#define MAX_NUM_PHI_ARGS 256
+
 typedef struct var_info
 {
 	char var_name[MAX_USR_VAR_NAME_LEN + 1];
 	int current_id;		// Number of times variable was defined
+	
+	// Used for phi function argument tracking
+	int outer_if_phi_arg;
+	int outer_else_phi_arg;
+	int inner_if_phi_arg;
+	int inner_else_phi_arg;
+	
+	int phi_args[MAX_NUM_PHI_ARGS];
+	int num_phi_args;
+	
 } Var_info;
 
 Var_info vars[MAX_NUM_VARS];
 int num_vars = 0;
+int if_else_context = OUTSIDE_IF_ELSE;
 FILE *ssa_file_ptr;
 
 // Open the file that will contain the complete SSA form output
@@ -51,6 +64,70 @@ int _ssa_get_var_index(char *var_name)
 	}
 
 	return -1;
+}
+
+// Go through all the variables and store the phi argument values that were 
+// recorded in the current if/else context to the main phi argument array for 
+// that variable; also reset the recording variables for the next use
+void _ssa_store_phi_args()
+{
+	int i;
+	for (i = 0; i < num_vars; i++)
+	{
+		if(vars[i].num_phi_args + 2 >= MAX_NUM_PHI_ARGS)
+		{
+			printf("Exceeded max num phi args for %s (MAX_NUM_PHI_ARGS=%d)\n", vars[i].var_name, MAX_NUM_PHI_ARGS);
+			exit(1);
+		}
+		
+		if(if_else_context == IN_INNER_IF_ELSE)	// Record and reset the INNER if/else arguments
+		{
+			if(vars[i].inner_if_phi_arg != -1)
+			{
+				vars[i].phi_args[vars[i].num_phi_args] = vars[i].inner_if_phi_arg;
+				vars[i].inner_if_phi_arg = -1;
+				vars[i].num_phi_args++;
+				printf("Recorded phi_arg: %s_%d\n", vars[i].var_name, vars[i].phi_args[vars[i].num_phi_args - 1]);
+			}
+			if(vars[i].inner_else_phi_arg != -1)
+			{
+				vars[i].phi_args[vars[i].num_phi_args] = vars[i].inner_else_phi_arg;
+				vars[i].inner_else_phi_arg = -1;
+				vars[i].num_phi_args++;
+				printf("Recorded phi_arg: %s_%d\n", vars[i].var_name, vars[i].phi_args[vars[i].num_phi_args - 1]);
+			}
+		}
+		else   // if_else_context == IN_OUTER_IF_ELSE, Record and reset the OUTER if/else arguments
+		{
+			if(vars[i].outer_if_phi_arg != -1)
+			{
+				vars[i].phi_args[vars[i].num_phi_args] = vars[i].outer_if_phi_arg;
+				vars[i].outer_if_phi_arg = -1;
+				vars[i].num_phi_args++;
+				printf("Recorded phi_arg: %s_%d\n", vars[i].var_name, vars[i].phi_args[vars[i].num_phi_args - 1]);
+			}
+			if(vars[i].outer_else_phi_arg != -1)
+			{
+				vars[i].phi_args[vars[i].num_phi_args] = vars[i].outer_else_phi_arg;
+				vars[i].outer_else_phi_arg = -1;
+				vars[i].num_phi_args++;
+				printf("Recorded phi_arg: %s_%d\n", vars[i].var_name, vars[i].phi_args[vars[i].num_phi_args - 1]);
+			}
+		}
+	}
+	
+	return;
+}
+
+// Record when a variable is written to inside of a if/else statement
+// If it is the last write to that variables in the if/else context, it will need 
+// to be added to the phi arguments list next time it is read outside the if/else context
+void _ssa_phi_arg_tracker(int var_index)
+{
+	int id_to_track = vars[var_index].current_id;
+	
+	
+	return;
 }
 
 // Takes in a user variable name that is being READ from, determines if if a
@@ -111,6 +188,8 @@ char* _ssa_rename_var(char *var_name, int assigned, char *assigned_this_line)
 		vars[index].current_id++;						// Increase to get new, unique ID
 		strcpy(assigned_this_line, var_name);			// Make that it was assigned this line
 		sprintf(ending, "_%d", vars[index].current_id);	// Create the new ID to be appended
+		
+		_ssa_phi_arg_tracker(index);
 	}
 	else
 	{
@@ -131,6 +210,45 @@ char* _ssa_rename_var(char *var_name, int assigned, char *assigned_this_line)
 	// printf("Renamed %s to %s\n", var_name, new_var_name);
 
 	return strdup(new_var_name);
+}
+
+// Updates the currently known context of the if/else statement
+// If the code has just left and if/else statement, need to store all the recorded
+// phi arguments to the main array of each variable
+// Information tracked by this is used by both phi argument generation and phi function insertion
+void ssa_if_else_context_tracker(int new_context)
+{
+	if(new_context == IN_OUTTER_IF && if_else_context == OUTSIDE_IF_ELSE)
+	{
+		printf("Entering outer if statement\n");
+	}
+	else if(new_context == IN_INNER_IF && if_else_context == IN_OUTTER_IF)
+	{
+		printf("Entered an inner (nested) if statement\n");
+	}
+	else if(new_context == IN_INNER_ELSE && if_else_context == IN_INNER_IF)
+	{
+		printf("Exited inner if statements, storing all phi arguments recorded in context");
+		_ssa_store_phi_args(if_else_context);
+	}
+	else if(new_context == && if_else_context == )
+	{
+		
+	}
+	else if(new_context == && if_else_context == )
+	{
+		
+	}
+	else if(new_context == && if_else_context == )
+	{
+		
+	}
+	else	// Should never get here
+	{
+		printf("Entering UNKNOWN state: current=%d new=%d\n", if_else_context, new_context);
+	}
+	
+	if_else_context = new_context;	// Update context value
 }
 
 // Takes the front end TAC code that passed through the basic block generation
