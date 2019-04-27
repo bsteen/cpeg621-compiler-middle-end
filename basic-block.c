@@ -75,18 +75,22 @@ void bb_print_if_else_block_end(char *if_stmt, int entering_nested_if)
 		outer_else_tag = next_block_tag;	// Tag used previously is outer else's tag
 		next_block_tag++;					// So next block doesn't reuse the else's tag
 		is_nested = 1;
+	}
+
+	char buffer[MAX_USR_VAR_NAME_LEN * 4];	// Enough room for variable and gotos
+	sprintf(buffer, "\t%s", if_stmt);		// Print out "if (...) {" statement
+	fprintf(bb_file_ptr, buffer);
+	ssa_process_tac(buffer);
+	
+	// Must do this after processing b/c "if(...) {" is outside the if statement 
+	if(entering_nested_if)
+	{
 		ssa_if_else_context_tracker(IN_INNER_IF);
 	}
 	else
 	{
 		ssa_if_else_context_tracker(IN_OUTER_IF);
 	}
-
-	char buffer[MAX_USR_VAR_NAME_LEN * 4];	// Enough room for variable and gotos
-
-	sprintf(buffer, "\t%s", if_stmt);		// Print out "if (...) {" statement
-	fprintf(bb_file_ptr, buffer);
-	ssa_process_tac(buffer);
 
 	sprintf(buffer, "\t\tgoto BB%d;\n", next_block_tag);
 	fprintf(bb_file_ptr, buffer);
