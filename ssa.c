@@ -12,10 +12,14 @@
 typedef struct var_info
 {
 	char var_name[MAX_USR_VAR_NAME_LEN + 1];
-	int current_id;		// Number of times variable was defined
+	int current_id;						// Number of times variable was defined
 
 	// Used for phi function argument tracking
-	int tracked_phi_arg;				// Current phi argument (var id) created in given context 
+	int outer_if_phi_arg;				// Current phi argument (var id) created in given context 	
+	int inner_if_phi_arg;
+	int inner_else_phi_arg;
+	int outer_else_phi_arg;
+
 	int phi_args[MAX_NUM_PHI_ARGS];		// Array of all the finilized phi args
 	int num_phi_args;
 
@@ -73,8 +77,22 @@ void _ssa_phi_arg_tracker(int var_index)
 	// current_id has already been increased before calling this function,
 	// so it will correspond to variable id that has been just written to
 	
-	vars[var_index].tracked_phi_arg = vars[var_index].current_id;
-	// printf("Currently tracking %s_%d\n", vars[var_index].var_name, vars[var_index].tracked_phi_arg);
+	switch (if_else_context){
+		case IN_OUTER_IF:
+			vars[var_index].outer_if_phi_arg = vars[var_index].current_id;
+			break;
+		case IN_INNER_IF:
+			vars[var_index].inner_if_phi_arg = vars[var_index].current_id;
+			break;
+		case IN_INNER_ELSE:
+			vars[var_index].inner_else_phi_arg = vars[var_index].current_id;
+			break;
+		case IN_OUTER_ELSE:
+			vars[var_index].outer_else_phi_arg = vars[var_index].current_id;
+			break;
+		default:	// Should never get here
+			printf("Invalid context for phi argument tracking\n");
+	}
 
 	return;
 }
@@ -97,7 +115,10 @@ char* _ssa_rename_var(char *var_name, int assigned, char *assigned_this_line)
 		{
 			strcpy(vars[num_vars].var_name, var_name);
 			vars[num_vars].current_id = 0;
-			vars[num_vars].tracked_phi_arg = -1;
+			vars[num_vars].outer_if_phi_arg = -1;	
+			vars[num_vars].inner_if_phi_arg = -1;
+			vars[num_vars].inner_else_phi_arg = -1;
+			vars[num_vars].outer_else_phi_arg = -1;
 			vars[num_vars].num_phi_args = 0;
 
 			index = num_vars;
