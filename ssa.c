@@ -15,7 +15,7 @@ typedef struct var_info
 	int current_id;		// Number of times variable was defined
 
 	// Used for phi function argument tracking
-	int tracked_phi_arg;				// Current phi argument created in given context
+	int tracked_phi_arg;				// Current phi argument (var id) created in given context 
 	int phi_args[MAX_NUM_PHI_ARGS];		// Array of all the finilized phi args
 	int num_phi_args;
 
@@ -70,8 +70,11 @@ void _ssa_insert_phi(char *var_name)
 // _ssa_store_phi_args will handle this "exiting" storage
 void _ssa_phi_arg_tracker(int var_index)
 {
-	// int id_to_track = vars[var_index].current_id;
-
+	// current_id has already been increased before calling this function,
+	// so it will correspond to variable id that has been just written to
+	
+	vars[var_index].tracked_phi_arg = vars[var_index].current_id;
+	// printf("Currently tracking %s_%d\n", vars[var_index].var_name, vars[var_index].tracked_phi_arg);
 
 	return;
 }
