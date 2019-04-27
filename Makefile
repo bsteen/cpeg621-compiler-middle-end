@@ -2,13 +2,10 @@
 # CPEG 621 Lab 3 - A Calculator Compiler Middle End
 #
 # TO DO:
-#Phi insertion
-#	Phi argument tracking
-# 		finish ssa_if_else_context_tracker
-#		fix _ssa_store_phi_args
-#		_ssa_phi_arg_tracker		
+#Phi insertion	
 #	Phi function insertion
-#			Case where it is read from inside if/else in-between writes to itself
+#		_ssa_insert_phi
+#		Case where it is read from inside if/else in-between writes to itself
 #	Rename variable +  inside phi function
 # Sweep to remove empty basic blocks
 # Verify all features
