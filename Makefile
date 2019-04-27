@@ -3,8 +3,6 @@
 #
 # TO DO:
 # Implement SSA
-#	Variable renaming
-# 		Check double nested
 #	Phi insertion
 #		Single if/else
 #		Nested if/else

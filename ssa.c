@@ -143,7 +143,7 @@ char* _ssa_rename_var(char *var_name, int assigned, char *assigned_this_line)
 void ssa_process_tac(char *tac_line)
 {
 	// Tokenize TAC input
-	char buffer[MAX_USR_VAR_NAME_LEN * 4];
+	char buffer[(MAX_USR_VAR_NAME_LEN * 4) + 64];	// Have room for 3 user vars in renamed form
 	strcpy(buffer, tac_line);
 	char assigned_this_line[MAX_USR_VAR_NAME_LEN + 1];	// Variable that was assigned value this TAC line
 	strcpy(assigned_this_line, "");
@@ -228,7 +228,6 @@ void ssa_process_tac(char *tac_line)
 					}
 
 					strcat(new_line, new_name);
-
 					free(new_name);
 				}
 			}
