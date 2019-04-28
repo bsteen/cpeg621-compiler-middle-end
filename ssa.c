@@ -392,7 +392,6 @@ void ssa_process_tac(char *tac_line)
 		strcpy(assigned_user_var, "");
 
 		int token_count = 0;
-
 		char *temp_token = strtok(buffer, " \t;\n");
 
 		// Index all tokens into the array
@@ -402,7 +401,17 @@ void ssa_process_tac(char *tac_line)
 			temp_token = strtok(NULL, " \t;\n");
 			token_count++;
 		}
-		
+
+		// Index:    0    1     2    3      4
+		// Case "diff_var = same_var op same_var" don't need a phi for
+		// for the inner same_var since the outer will already insert one
+		int phi_not_needed_idx2 = 0;
+		if(token_count == 5 && (strcmp(token_array[2], token_array[4]) == 0))
+		{
+			// Don't need phi for the inner same_var
+			phi_not_needed_idx2 = 1;
+		}
+
 		// Traverse token array from right to left so assignment token is processed at the end
 		int i;
 		for(i = token_count - 1; i >= 0; i--)
@@ -441,12 +450,11 @@ void ssa_process_tac(char *tac_line)
 					char * new_name;
 					if(i > 0)
 					{
-						// Index:    0    1     2    3      4
-						// Case "diff_var = same_var op same_var" don't need a phi for
-						// for the inner same_var since the outer will already insert one
-						if(token_count == 5 && (strcmp(token_array[2], token_array[4]) == 0) && i == 2)
+						if(i == 2 && phi_not_needed_idx2)
 						{
-							// Don't need phi for the inner same_var
+							// Case "diff_var = same_var op same_var", don't need phi
+							// for same_var at index 2 since index 4 same_var already inserted one
+							printf("Extra phi not needed: diff_var = same_var op same_var\n");
 						}
 						else
 						{
