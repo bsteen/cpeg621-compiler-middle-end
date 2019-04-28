@@ -7,6 +7,9 @@
 #define IN_INNER_ELSE	4
 #define OUTSIDE_IF_ELSE -1
 
+#define ASSIGNED_OUTSIDE		6
+#define ASSIGNED_OUTER_ELSE		7
+
 void ssa_init_file(char *ssa_file_name);
 void ssa_if_else_context_tracker(int context);
 void ssa_process_tac(char *tac_line);

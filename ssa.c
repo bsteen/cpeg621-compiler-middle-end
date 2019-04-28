@@ -80,6 +80,38 @@ void _ssa_phi_arg_tracker(int var_index)
 	return;
 }
 
+// Called when variable is assigned value outside if/else or in an outer else
+// For the outside if/else case, the new assignment overwrites ALL previous assignments,
+// so all the phi arguments can be cleared
+// In the outer else case, the outer else and if ID overwrite ALL other assignments
+// including the the outside_if_else_phi_arg 
+void _ssa_assigned_in_guaranteed_path(int var_index, int type)
+{
+	if(type == ASSIGNED_OUTSIDE)
+	{
+		vars[var_index].num_phi_args_if_else = 0;
+		printf("%s_%d assigned value outside if/else, clear all other phi args\n",
+				vars[var_index].var_name, vars[var_index].outside_if_else_phi_arg);
+	}
+	else
+	{
+		// Copy the LAST arg in the args list (will be the outer if) to the first index
+		int outer_if_arg = vars[var_index].phi_args_if_else[vars[var_index].num_phi_args_if_else - 1];
+		vars[var_index].phi_args_if_else[0] = outer_if_arg;
+		vars[var_index].num_phi_args_if_else = 1;	// Clear all args besides the first
+		
+		// Clear outside arg if/else too
+		vars[var_index].outside_if_else_phi_arg = -1;
+		
+		// The outer else with then be copied to arg list via _ssa_store_if_else_phi_args
+		// once outer else is left
+		
+		printf("%s_%d and %s_%d assigned in outer if/else, clear other phi args\n",
+				vars[var_index].var_name, vars[var_index].phi_args_if_else[0],
+				vars[var_index].var_name, vars[var_index].outer_else_phi_arg);
+	}
+}
+
 // Takes in a user variable name that is being READ from, determines if if a
 // phi function needs to be inserted, and if it does, it will write it out to the SSA
 // file
@@ -87,6 +119,7 @@ void _ssa_insert_phi_func(char *var_name)
 {
 	int index = _ssa_get_var_index(var_name);
 
+	// First eliminate cases where phi function not actually needed
 	if (index == -1)
 	{
 		printf("%s read from for the first time, phi function not needed\n", var_name);
@@ -94,20 +127,43 @@ void _ssa_insert_phi_func(char *var_name)
 	}
 	else if(vars[index].num_phi_args_if_else == 0)
 	{
+		// var still has same ID of last outside if/else assignment
 		printf("Phi function for %s not needed now\n", var_name);
 		return;
 	}
-
-	// Start the phi function insertion
+	else if(if_else_context == IN_INNER_IF)
+	{
+		// Don't need phi if variable read in inner if was assigned a value in
+		// the inner or outer if before its read
+		if(vars[index].outer_if_phi_arg != -1 || vars[index].inner_if_phi_arg)
+		{
+			printf("Phi not needed for %s_%d b/c prev assignment in guaranteed path\n", vars[index].var_name, vars[index].current_id);
+			return;
+		}
+	}
+	
+	// Start the phi func insertion
 	vars[index].current_id++;	// Phi function counts as assignment => need new var ID
-	fprintf(ssa_file_ptr, "%s_%d = phi(", var_name, vars[index].current_id);
+	fprintf(ssa_file_ptr, "\t%s_%d = phi(", var_name, vars[index].current_id);
 	printf("%s_%d = phi(", var_name, vars[index].current_id);
 
-	// Write out outside if/else phi argument first, if it has one
+	// Write out outside if/else phi argument first
 	if(vars[index].outside_if_else_phi_arg != -1)
 	{
 		fprintf(ssa_file_ptr, "%s_%d, ", var_name, vars[index].outside_if_else_phi_arg);
 		printf("%s_%d, ", var_name, vars[index].outside_if_else_phi_arg);
+	}
+
+	// FIND WAY TO REMOVE THIS
+	// If variable was assigned a value in the outer if and is then being read 
+	// again in the same outer if, have to be safe and insert phi function b/c
+	// we don't know if the variable is being read after being assigned a value 
+	// inside a nested if/else; Therefore include this earlier assignment in phi
+	// args since it has not been written to the phi args array yet
+	if(if_else_context == IN_OUTER_IF && vars[index].outer_if_phi_arg != -1)
+	{
+		fprintf(ssa_file_ptr, "%s_%d, ", var_name, vars[index].outer_if_phi_arg);
+		printf("%s_%d, ", var_name, vars[index].outer_if_phi_arg);
 	}
 
 	// Print out phi args from inside if/elses
@@ -118,27 +174,23 @@ void _ssa_insert_phi_func(char *var_name)
 		printf("%s_%d, ", var_name, vars[index].phi_args_if_else[i]);
 	}
 
-	// Close phi function
+	// Close phi function (i = num_phi_args_if_else - 1)
 	fprintf(ssa_file_ptr, "%s_%d);\n", var_name, vars[index].phi_args_if_else[i]);
 	printf("%s_%d);\n", var_name, vars[index].phi_args_if_else[i]);
-		
-	// Case where assigned value inside if/else then read or written to in another if else later
-	//		chained like this several times
 	
-	// Case where it is read from inside if/else in-between writes to itself
-
-	// WHEN TO FORGET PHI ARGS????
-	// If phi function written outside an if/else statement, can forget all phi arguments??
-	// Clear phi function variables when phi inserted into a guaranteed to run location
-
-	// Need to record assignment of phi function and whether it is inside or outside an if/else stmnt
-
-	// If the variable was first defined inside an if-statement (x0) and then read outside it,
-	// Would need phi function and would choose between self and if value (would be x1 = phi(x0, x1))
-	
-	// Since phi function counts as an assignment, need to track assigned variable id
+	// Track this new variable id that was assigned the phi function
 	_ssa_phi_arg_tracker(index);
-
+	
+	if(if_else_context == OUTSIDE_IF_ELSE)
+	{
+		// When phi function is inserted outside an if/else statement, all the previous
+		// phi function arguments can be forgotten because a guaranteed join has been reached
+		// with this new assignment to the phi function
+		// Also, since phi functions aren't needed inside else statements, DON'T need case
+		// here for an outer else guaranteed path
+		_ssa_assigned_in_guaranteed_path(index, ASSIGNED_OUTSIDE);
+	}
+	
 	return;
 }
 
@@ -180,13 +232,15 @@ void _ssa_store_if_else_phi_args()
 		// Otherwise, store id to main phi args list
 		if (id_to_store != -1)
 		{
-			if(vars[i].num_phi_args_if_else >= MAX_NUM_PHI_ARGS)
+			int num_args = vars[i].num_phi_args_if_else;
+			
+			if(num_args >= MAX_NUM_PHI_ARGS)
 			{
 				printf("Exceeded max num phi args for %s (MAX_NUM_PHI_ARGS=%d)\n", vars[i].var_name, MAX_NUM_PHI_ARGS);
 				exit(1);
 			}
 
-			vars[i].phi_args_if_else[vars[i].num_phi_args_if_else] = id_to_store;	// Copy to main array of args										// Reset for next context
+			vars[i].phi_args_if_else[num_args] = id_to_store;	// Copy to main array of args										// Reset for next context
 			vars[i].num_phi_args_if_else++;
 			printf("Recorded phi arg: %s_%d\n", vars[i].var_name, vars[i].phi_args_if_else[vars[i].num_phi_args_if_else - 1]);
 		}
@@ -219,7 +273,7 @@ char* _ssa_rename_var(char *var_name, int assigned, char *assigned_this_line)
 			vars[num_vars].inner_else_phi_arg = -1;
 			vars[num_vars].outer_else_phi_arg = -1;
 			vars[num_vars].num_phi_args_if_else = 0;
-			vars[num_vars].outside_if_else_phi_arg = -1;
+			vars[num_vars].outside_if_else_phi_arg = 0;	// Every var starts defined as var_0 with 0 as value
 
 			index = num_vars;
 			num_vars++;
@@ -395,6 +449,8 @@ void ssa_process_tac(char *tac_line)
 					else // The first token in a TAC line is being assigned a value (no phi needed)
 					{
 						new_name = _ssa_rename_var(token, 1, assigned_this_line);
+						// THE RENAME FUNCTION WILL AUTOMATICALLY CALL _ssa_phi_arg_tracker
+						// TO RECORD THIS ASSIGNMENT ONCE THE NEW NAME IS GIVE
 					}
 
 					strcat(new_line, new_name);
@@ -409,6 +465,26 @@ void ssa_process_tac(char *tac_line)
 		strcat(new_line, ";\n");
 		printf("Wrote out: %s", new_line);
 		fprintf(ssa_file_ptr, "%s", new_line);
+		
+		// Check if value was assigned in a "guaranteed path" If so, can clear
+		// unneeded phi args before next time phi function is needed
+		if(strcmp(assigned_this_line, "") != 0)
+		{
+			// If assigned value outside if/else, call function to clear unneeded phi args
+			// Need to do this at end of function to not interfere with potential self assignment
+			// needing phi functions
+			if(if_else_context == OUTSIDE_IF_ELSE)
+			{
+				// Index guaranteed to not be -1 since it was assigned value
+				_ssa_assigned_in_guaranteed_path(_ssa_get_var_index(assigned_this_line), ASSIGNED_OUTSIDE);
+			}
+			else if(if_else_context == IN_OUTER_ELSE)
+			{
+				// If variable was assigned in the outer else, it was also assigned in the outer if
+				// At least one of those two paths is guaranteed to run, so only keep those two phi args
+				_ssa_assigned_in_guaranteed_path(_ssa_get_var_index(assigned_this_line), ASSIGNED_OUTER_ELSE);
+			}
+		}
 	}
 
 	return;
