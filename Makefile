@@ -3,9 +3,8 @@
 #
 # TO DO:
 # Test phi insertion
-# 	Go through and look at all corner cases programmed, add testes here
 #	Do all these test:
-#		!!!!!variable x in nested self assign
+#		!!!!!variable x in nested self assign (wait to iterate the phi function until end of line?)
 #		When inserting inside if else (nested or not) and then read outside if/else
 #		Inserted outside if/else and read inside if/else
 #			Inserted inside if/else and then written to again in if else
@@ -15,6 +14,8 @@
 #			Chained like this several times
 #		Case where defined out side if else assigned inner if and read inner if
 #			before and after nested if/else
+#		Verify don't need phi if variable read in inner if was assigned a value in the
+#			inner or outer if before its read
 # Try to remove unnecessary phi functions
 #	Case where reading inside if when it was already defined inside if
 # 		Many ifelseb variable y

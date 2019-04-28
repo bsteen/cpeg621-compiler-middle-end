@@ -135,7 +135,7 @@ void _ssa_insert_phi_func(char *var_name)
 	{
 		// Don't need phi if variable read in inner if was assigned a value in
 		// the inner or outer if before its read
-		if(vars[index].outer_if_phi_arg != -1 || vars[index].inner_if_phi_arg)
+		if(vars[index].outer_if_phi_arg != -1 || vars[index].inner_if_phi_arg != -1)
 		{
 			printf("Phi not needed for %s_%d b/c prev assignment in guaranteed path\n", vars[index].var_name, vars[index].current_id);
 			return;
