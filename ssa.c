@@ -84,7 +84,7 @@ void _ssa_phi_arg_tracker(int var_index)
 // For the outside if/else case, the new assignment overwrites ALL previous assignments,
 // so all the phi arguments can be cleared
 // In the outer else case, the outer else and if ID overwrite ALL other assignments
-// including the the outside_if_else_phi_arg 
+// including the the outside_if_else_phi_arg
 void _ssa_assigned_in_guaranteed_path(int var_index, int type)
 {
 	if(type == ASSIGNED_OUTSIDE)
@@ -99,13 +99,13 @@ void _ssa_assigned_in_guaranteed_path(int var_index, int type)
 		int outer_if_arg = vars[var_index].phi_args_if_else[vars[var_index].num_phi_args_if_else - 1];
 		vars[var_index].phi_args_if_else[0] = outer_if_arg;
 		vars[var_index].num_phi_args_if_else = 1;	// Clear all args besides the first
-		
+
 		// Clear outside arg if/else too
 		vars[var_index].outside_if_else_phi_arg = -1;
-		
+
 		// The outer else with then be copied to arg list via _ssa_store_if_else_phi_args
 		// once outer else is left
-		
+
 		printf("%s_%d and %s_%d assigned in outer if/else, clear other phi args\n",
 				vars[var_index].var_name, vars[var_index].phi_args_if_else[0],
 				vars[var_index].var_name, vars[var_index].outer_else_phi_arg);
@@ -141,7 +141,7 @@ void _ssa_insert_phi_func(char *var_name)
 			return;
 		}
 	}
-	
+
 	// Start the phi func insertion
 	vars[index].current_id++;	// Phi function counts as assignment => need new var ID
 	fprintf(ssa_file_ptr, "\t%s_%d = phi(", var_name, vars[index].current_id);
@@ -155,9 +155,9 @@ void _ssa_insert_phi_func(char *var_name)
 	}
 
 	// FIND WAY TO REMOVE THIS
-	// If variable was assigned a value in the outer if and is then being read 
+	// If variable was assigned a value in the outer if and is then being read
 	// again in the same outer if, have to be safe and insert phi function b/c
-	// we don't know if the variable is being read after being assigned a value 
+	// we don't know if the variable is being read after being assigned a value
 	// inside a nested if/else; Therefore include this earlier assignment in phi
 	// args since it has not been written to the phi args array yet
 	if(if_else_context == IN_OUTER_IF && vars[index].outer_if_phi_arg != -1)
@@ -177,10 +177,10 @@ void _ssa_insert_phi_func(char *var_name)
 	// Close phi function (i = num_phi_args_if_else - 1)
 	fprintf(ssa_file_ptr, "%s_%d);\n", var_name, vars[index].phi_args_if_else[i]);
 	printf("%s_%d);\n", var_name, vars[index].phi_args_if_else[i]);
-	
+
 	// Track this new variable id that was assigned the phi function
 	_ssa_phi_arg_tracker(index);
-	
+
 	if(if_else_context == OUTSIDE_IF_ELSE)
 	{
 		// When phi function is inserted outside an if/else statement, all the previous
@@ -190,7 +190,7 @@ void _ssa_insert_phi_func(char *var_name)
 		// here for an outer else guaranteed path
 		_ssa_assigned_in_guaranteed_path(index, ASSIGNED_OUTSIDE);
 	}
-	
+
 	return;
 }
 
@@ -233,7 +233,7 @@ void _ssa_store_if_else_phi_args()
 		if (id_to_store != -1)
 		{
 			int num_args = vars[i].num_phi_args_if_else;
-			
+
 			if(num_args >= MAX_NUM_PHI_ARGS)
 			{
 				printf("Exceeded max num phi args for %s (MAX_NUM_PHI_ARGS=%d)\n", vars[i].var_name, MAX_NUM_PHI_ARGS);
@@ -253,7 +253,7 @@ void _ssa_store_if_else_phi_args()
 // form var_name + "_#"; If it's being assigned a value, need to create
 // new name for var (increase number at end by one); If it is being read from,
 // use last recorded number
-char* _ssa_rename_var(char *var_name, int assigned, char *assigned_this_line)
+char* _ssa_rename_var(char *var_name, int assigned)
 {
 	char new_var_name[MAX_USR_VAR_NAME_LEN + 16];
 	strcpy(new_var_name, var_name);
@@ -291,23 +291,13 @@ char* _ssa_rename_var(char *var_name, int assigned, char *assigned_this_line)
 	if(assigned)
 	{
 		vars[index].current_id++;						// Increase to get new, unique ID
-		strcpy(assigned_this_line, var_name);			// Make that it was assigned this line
 		sprintf(ending, "_%d", vars[index].current_id);	// Create the new ID to be appended
 
 		_ssa_phi_arg_tracker(index);					// Need to track assignment
 	}
 	else
 	{
-		// If the variable is being assigned to itself, need to use last ID for variable's
-		// appearance(s) on right hand side of assignment b/c the ID was already increased this line
-		if(strcmp(var_name, assigned_this_line) == 0)
-		{
-			sprintf(ending, "_%d", vars[index].current_id - 1);
-		}
-		else	// Normal variable read case, just use current ID
-		{
-			sprintf(ending, "_%d", vars[index].current_id);
-		}
+		sprintf(ending, "_%d", vars[index].current_id);
 	}
 
 	strcat(new_var_name, ending);
@@ -370,8 +360,6 @@ void ssa_process_tac(char *tac_line)
 	// Tokenize TAC input
 	char buffer[(MAX_USR_VAR_NAME_LEN * 4) + 64];	// Have room for 3 user vars in renamed form
 	strcpy(buffer, tac_line);
-	char assigned_this_line[MAX_USR_VAR_NAME_LEN + 1];	// Variable that was assigned value this TAC line
-	strcpy(assigned_this_line, "");
 
 	// If-statement case
 	if(strstr(buffer, "if(") != NULL)
@@ -389,7 +377,7 @@ void ssa_process_tac(char *tac_line)
 		else
 		{
 			_ssa_insert_phi_func(cond);
-			char * new_cond = _ssa_rename_var(cond, 0, assigned_this_line);
+			char * new_cond = _ssa_rename_var(cond, 0);
 
 			printf("Wrote out: \tif(%s) {\n", new_cond);
 			fprintf(ssa_file_ptr, "\tif(%s) {\n", new_cond);
@@ -399,76 +387,107 @@ void ssa_process_tac(char *tac_line)
 	}
 	else	// Assignment cases: a = (!)b; a = b op c;
 	{
-		char new_line[MAX_USR_VAR_NAME_LEN * 4];
-		strcpy(new_line, "\t");		// Must COPY in first, not strcat (first index may not be NULL)
+		char token_array[5][MAX_USR_VAR_NAME_LEN + 16];		// Max of 5 tokens in a line
+		char assigned_user_var[MAX_USR_VAR_NAME_LEN + 1];	// User variable assigned this line
+		strcpy(assigned_user_var, "");
 
-		char *token = strtok(buffer, " \t;\n");
-		int token_counter = 1;
+		int token_count = 0;
 
-		while(token != NULL)
+		char *temp_token = strtok(buffer, " \t;\n");
+
+		// Index all tokens into the array
+		while(temp_token != NULL)
 		{
-			if(token[0] == '!')	// Unary operator case (!user_var, !temp, or !#)
+			strcpy(token_array[token_count], temp_token);
+			temp_token = strtok(NULL, " \t;\n");
+			token_count++;
+		}
+		
+		// Traverse token array from right to left so assignment token is processed at the end
+		int i;
+		for(i = token_count - 1; i >= 0; i--)
+		{
+			if(token_array[i][0] == '!')	// Unary operator case (!user_var, !temp, or !#)
 			{
-				if(token[1] == '_' || token[1] < 'A')	// Don't need to change constant or temp
+				if(token_array[i][1] == '_' || token_array[i][1] < 'A')	// Don't need to change constant or temp
 				{
-					strcat(new_line, token);
+					continue;
 				}
-				else	// User var case (!user_var)
+				else	// Case: !user_var
 				{
-					token++; 		// Move past the !
-					_ssa_insert_phi_func(token);
-					char *new_name =  _ssa_rename_var(token, 0, assigned_this_line);
+					temp_token = token_array[i] + 1; 		// Move past the "!"
 
-					strcat(new_line, "!");		// Re-add the ! operator
-					strcat(new_line, new_name);
+					_ssa_insert_phi_func(temp_token);
+					char *new_name = _ssa_rename_var(temp_token, 0);
+
+					strcpy(token_array[i] + 1, new_name);	// ! operator will still be intact
 
 					free(new_name);
 				}
 			}
-			else if(token[0] == '=' || token[0] < '0') // Operator case (=, +, -, *, /, **)
+			else if(token_array[i][0] == '=' || token_array[i][0] < '0') // Operator case (=, +, -, *, /, **)
 			{
-				strcat(new_line, " ");
-				strcat(new_line, token);
-				strcat(new_line, " ");
+				continue;
 			}
-			else	// Variable (temp or user) or constant case
+			else	// Variable (_t# or user_var) or constant case
 			{
-				if(token[0] == '_' || token[0] < 'A')	// Don't need to do anything with temps or vars
+				if(token_array[i][0] == '_' || token_array[i][0] < 'A')	// Don't need to do anything with temps or vars
 				{
-					strcat(new_line, token);
+					continue;
 				}
 				else
 				{
-					// Variable being read from, may need to insert phi function
+					// User variable being read from, MAY need to insert phi function
 					char * new_name;
-					if(token_counter > 1)
+					if(i > 0)
 					{
-						_ssa_insert_phi_func(token);
-						new_name = _ssa_rename_var(token, 0, assigned_this_line);
+						// Index:    0    1     2    3      4
+						// Case "diff_var = same_var op same_var" don't need a phi for
+						// for the inner same_var since the outer will already insert one
+						if(token_count == 5 && (strcmp(token_array[2], token_array[4]) == 0) && i == 2)
+						{
+							// Don't need phi for the inner same_var
+						}
+						else
+						{
+							_ssa_insert_phi_func(token_array[i]);
+						}
+
+						new_name = _ssa_rename_var(token_array[i], 0);
 					}
 					else // The first token in a TAC line is being assigned a value (no phi needed)
 					{
-						new_name = _ssa_rename_var(token, 1, assigned_this_line);
+						strcpy(assigned_user_var, token_array[i]);		// Record the user variable that was assigned
+						new_name = _ssa_rename_var(token_array[i], 1);
 						// THE RENAME FUNCTION WILL AUTOMATICALLY CALL _ssa_phi_arg_tracker
-						// TO RECORD THIS ASSIGNMENT ONCE THE NEW NAME IS GIVE
+						// TO RECORD THIS ASSIGNMENT BEFORE THE NEW NAME IS GENERATED
 					}
 
-					strcat(new_line, new_name);
+					strcpy(token_array[i], new_name);
 					free(new_name);
 				}
 			}
-
-			token = strtok(NULL, " \t;\n");
-			token_counter++;
 		}
 
-		strcat(new_line, ";\n");
+		char new_line[(MAX_USR_VAR_NAME_LEN + 16) * 4];
+		strcpy(new_line, "\t");
+
+		for (i = 0; i < token_count - 1; i++)
+		{
+			strcat(new_line, token_array[i]);
+			strcat(new_line, " ");
+		}
+
+		strcat(new_line, token_array[token_count - 1]);	// Add last token
+		strcat(new_line, ";\n");						// and close TAC line
+
 		printf("Wrote out: %s", new_line);
 		fprintf(ssa_file_ptr, "%s", new_line);
-		
+
 		// Check if value was assigned in a "guaranteed path" If so, can clear
 		// unneeded phi args before next time phi function is needed
-		if(strcmp(assigned_this_line, "") != 0)
+		// String will be empty if assigned var was temp value
+		if(strcmp(assigned_user_var, "") != 0)
 		{
 			// If assigned value outside if/else, call function to clear unneeded phi args
 			// Need to do this at end of function to not interfere with potential self assignment
@@ -476,13 +495,13 @@ void ssa_process_tac(char *tac_line)
 			if(if_else_context == OUTSIDE_IF_ELSE)
 			{
 				// Index guaranteed to not be -1 since it was assigned value
-				_ssa_assigned_in_guaranteed_path(_ssa_get_var_index(assigned_this_line), ASSIGNED_OUTSIDE);
+				_ssa_assigned_in_guaranteed_path(_ssa_get_var_index(assigned_user_var), ASSIGNED_OUTSIDE);
 			}
 			else if(if_else_context == IN_OUTER_ELSE)
 			{
 				// If variable was assigned in the outer else, it was also assigned in the outer if
 				// At least one of those two paths is guaranteed to run, so only keep those two phi args
-				_ssa_assigned_in_guaranteed_path(_ssa_get_var_index(assigned_this_line), ASSIGNED_OUTER_ELSE);
+				_ssa_assigned_in_guaranteed_path(_ssa_get_var_index(assigned_user_var), ASSIGNED_OUTER_ELSE);
 			}
 		}
 	}

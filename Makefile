@@ -5,6 +5,7 @@
 # Test phi insertion
 #	Do all these test:
 #		!!!!!variable x in nested self assign (wait to iterate the phi function until end of line?)
+#			nested self assign1 2 and uneeded phi 3
 #		When inserting inside if else (nested or not) and then read outside if/else
 #		Inserted outside if/else and read inside if/else
 #			Inserted inside if/else and then written to again in if else
@@ -26,6 +27,7 @@
 #		This new phi assignment outside the if/should also remove those phi values since they are now joined
 #			variable x in test0
 #			variable c in ifelse2
+#			var x in nested assign1
 # Remove printouts
 # Verify all features
 # Write report
