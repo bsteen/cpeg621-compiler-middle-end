@@ -2,33 +2,23 @@
 # CPEG 621 Lab 3 - A Calculator Compiler Middle End
 #
 # TO DO:
-# Test phi insertion
-#	Do all these test:
-#		!!!!!variable x in nested self assign (wait to iterate the phi function until end of line?)
-#			nested self assign1 2 and uneeded phi 3
-#		When inserting inside if else (nested or not) and then read outside if/else
-#		Inserted outside if/else and read inside if/else
-#			Inserted inside if/else and then written to again in if else
-#		Written to in one if and then written to in another if then read in another i
-#			Same but for nested combinations
-#		Case where assigned value inside if/else then read to in another if else later
-#			Chained like this several times
-#		Case where defined out side if else assigned inner if and read inner if
-#			before and after nested if/else
-#		Verify don't need phi if variable read in inner if was assigned a value in the
-#			inner or outer if before its read
-# Try to remove unnecessary phi functions
+# Try to remove unnecessary phi functions or arguments
 #	Case where reading inside if when it was already defined inside if
 # 		Many ifelseb variable y
 # 		Can use solution from below problem to solve this (do before start of phi insertion)
+#	Case where it is assgined value in both outer if and else
+#		What if was assigned a value inside an inner if?
 #	Case where it is being read after inner if/else where it was assigned two values
 #		and was defined before entire if else => only needs inner if/else args for phi in this context,
 # 		but shouldn't forget outer until written to on guaranteed path
-#		This new phi assignment outside the if/should also remove those phi values since they are now joined
+#		This new phi assignment outside the inner if/should also remove those phi values since they are now joined
 #			variable x in test0
 #			variable c in ifelse2
 #			var x in nested assign1
-# Remove printouts
+# 	Case where assigned in previous if, assigned in another if and then read right after
+#		should not need phi if no assignment done in inner if else
+#		y in uneededphi2, x in uneededphi4
+# Remove unneeded basic blocks
 # Verify all features
 # Write report
 
