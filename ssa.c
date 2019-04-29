@@ -113,7 +113,7 @@ void _ssa_assigned_in_guaranteed_path(int index, int type)
 			vars[index].inner_if_phi_arg = -1;
 			vars[index].num_phi_args_if_else--;
 		}
-		printf("%s_%d assigned value after nested if/else, cleared phi arg(s) from nest\n", vars[index].var_name, vars[index].current_id);
+		printf("%s_%d assigned value (directly or by phi) after nested if/else, cleared phi arg(s) from nest\n", vars[index].var_name, vars[index].current_id);
 	}
 	else if(type == ASSIGNED_OUTER_IF_ELSE)
 	{
@@ -189,11 +189,12 @@ void _ssa_insert_phi_func(char *var_name)
 	// Start the phi func insertion
 	vars[index].current_id++;	// Phi function counts as assignment => need new var ID
 	fprintf(ssa_file_ptr, "\t%s_%d = phi(", var_name, vars[index].current_id);
-	printf("%s_%d = phi(", var_name, vars[index].current_id);
+	printf("WROTE OUT:\t%s_%d = phi(", var_name, vars[index].current_id);
 
 	// Case where both inner if and else have var written to => need make them the
 	// only args for the phi functions and remove them from phi args list
-	/*if(if_else_context == IN_OUTER_IF_AFTER_NEST &&
+	// A "shortcut" phi
+	if(if_else_context == IN_OUTER_IF_AFTER_NEST &&
 	   vars[index].inner_if_phi_arg != -1 && vars[index].inner_else_phi_arg != -1)
 	{
 		int inner_if = vars[index].inner_if_phi_arg;
@@ -210,9 +211,9 @@ void _ssa_insert_phi_func(char *var_name)
 		// Track the new variables that is the combination of the two inner if/elses
 		_ssa_phi_arg_tracker(index);
 		
-		printf("%s was assigned in both inner if/else and read right after, shortcut phi created (above)", var_name);
+		printf("%s assigned in both inner if/elses and read right after, shortcut phi created\n", var_name);
 		return;
-	}*/
+	}
 
 	// Write out outside if/else phi argument first
 	if(vars[index].outside_if_else_phi_arg != -1)
@@ -247,12 +248,23 @@ void _ssa_insert_phi_func(char *var_name)
 
 	if(if_else_context == OUTSIDE_IF_ELSE)
 	{
-		// When phi function is inserted outside an if/else statement, all the previous
-		// phi function arguments can be forgotten because a guaranteed join has been reached
-		// with this new assignment to the phi function
-		// Also, since phi functions aren't needed inside else statements, DON'T need case
-		// here for an outer else guaranteed path
+		// When phi function is inserted outside an if/else statement, all the 
+		// previous phi function arguments can be forgotten because a guaranteed
+		// join has been reached with this new assignment to the phi function
+		// Also, since phi functions aren't needed inside else statements, DON'T
+		// need case here for an outer else guaranteed path
 		_ssa_assigned_in_guaranteed_path(index, ASSIGNED_OUTSIDE);
+	}
+	else if(if_else_context == IN_OUTER_IF_AFTER_NEST)
+	{
+		// If assigned phi arg after nested if/else can clear temp and remove 
+		// from array any phi arg that was generated in the nested if/else prior
+		// Reaches here if assigned only in one of the nested if/else branches,
+		// because it would have used the shortcut earlier if written in both
+		if(vars[index].inner_else_phi_arg != -1 || vars[index].inner_if_phi_arg != -1)
+		{
+			_ssa_assigned_in_guaranteed_path(index, ASSIGNED_AFTER_NEST);
+		}
 	}
 
 	return;
@@ -492,7 +504,7 @@ void ssa_process_tac(char *tac_line)
 			_ssa_insert_phi_func(cond);
 			char * new_cond = _ssa_rename_var(cond, 0);
 
-			printf("Wrote out: \tif(%s) {\n", new_cond);
+			printf("WROTE OUT:\tif(%s) {\n", new_cond);
 			fprintf(ssa_file_ptr, "\tif(%s) {\n", new_cond);
 
 			free(new_cond);
@@ -602,7 +614,7 @@ void ssa_process_tac(char *tac_line)
 		strcat(new_line, token_array[token_count - 1]);	// Add last token
 		strcat(new_line, ";\n");						// and close TAC line
 
-		printf("Wrote out: %s", new_line);
+		printf("WROTE OUT: %s", new_line);
 		fprintf(ssa_file_ptr, "%s", new_line);
 
 		// Check if value was assigned in a "guaranteed path" If so, can clear
