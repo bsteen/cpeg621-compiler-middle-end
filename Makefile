@@ -6,7 +6,7 @@
 #	and was defined before entire if else => only needs inner if/else args for phi in this context,
 #	but shouldn't forget outer until written to on guaranteed path
 #	This new phi assignment outside the inner if/should also remove those phi values since they are now joined
-#		WARNING!!!! y in uneededphi6 (not assigned in both inner if/else)
+#		y in uneededphi6 (not assigned in both inner if/else)
 #		variable x in uneededphi5
 #		variable c in ifelse2
 #		variable y in uneededphi2

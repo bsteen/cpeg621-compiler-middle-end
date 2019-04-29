@@ -91,6 +91,30 @@ void _ssa_assigned_in_guaranteed_path(int index, int type)
 		printf("%s_%d assigned outside if/else, cleared all other phi args\n",
 			vars[index].var_name, vars[index].outside_if_else_phi_arg);
 	}
+	else if(type == ASSIGNED_INNER_IF_ELSE)
+	{
+		vars[index].outer_if_phi_arg = -1;
+		printf("%s assigned in both inner if/else, clearing outer_if_phi_arg\n", vars[index].var_name);
+	}
+	else if(type == ASSIGNED_AFTER_NEST)
+	{
+		if(vars[index].inner_else_phi_arg != -1)	// Else arg is stored after the if in the array
+		{
+			// Remove the inner else phi argument from the args array, 
+			// since it has been dominated by an assignment after the nest
+			vars[index].inner_else_phi_arg = -1;
+			vars[index].num_phi_args_if_else--;
+		}
+
+		if(vars[index].inner_if_phi_arg != -1)
+		{
+			// Remove the inner if phi argument from the args array, 
+			// since it has been dominated by an assignment after the nest
+			vars[index].inner_if_phi_arg = -1;
+			vars[index].num_phi_args_if_else--;
+		}
+		printf("%s_%d assigned value after nested if/else, cleared phi arg(s) from nest\n", vars[index].var_name, vars[index].current_id);
+	}
 	else if(type == ASSIGNED_OUTER_IF_ELSE)
 	{
 		// If assigned in both outer if and else; The last two indexes in phi_args_if_else
@@ -108,29 +132,6 @@ void _ssa_assigned_in_guaranteed_path(int index, int type)
 
 		printf("%s_%d and %s_%d assigned in both outer if and outer else, cleared all other phi args\n",
 				vars[index].var_name, assigned_outer_if, vars[index].var_name, assigned_outer_else);
-	}
-	else if(type == ASSIGNED_AFTER_NEST)
-	{	// TESTING!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-		if(vars[index].inner_else_phi_arg != -1)	// Else arg is stored after the if in the array
-		{
-			// Overwrite the else phi argument with the var assigned after the nest
-			int num_phi_args = vars[index].num_phi_args_if_else;
-			vars[index].phi_args_if_else[num_phi_args - 2] = vars[index].phi_args_if_else[num_phi_args - 1];
-
-			vars[index].inner_else_phi_arg = -1;
-			vars[index].num_phi_args_if_else--;
-		}
-
-		if(vars[index].inner_if_phi_arg != -1)
-		{
-			// Overwrite the if phi argument with the var assigned after the nest
-			int num_phi_args = vars[index].num_phi_args_if_else;
-			vars[index].phi_args_if_else[num_phi_args - 2] = vars[index].phi_args_if_else[num_phi_args - 1];
-
-			vars[index].inner_if_phi_arg = -1;
-			vars[index].num_phi_args_if_else--;
-		}
-		printf("%s_%d assigned value after nested if/else, cleared phi arg(s) from nest\n", vars[index].var_name, vars[index].current_id);
 	}
 	else
 	{
@@ -150,13 +151,13 @@ void _ssa_insert_phi_func(char *var_name)
 	// First eliminate cases where phi function not actually needed
 	if (index == -1)
 	{
-		printf("%s read from for the first time, phi function not needed\n", var_name);
+		printf("No phi for %s, read from for the first time, \n", var_name);
 		return;
 	}
 	else if(vars[index].num_phi_args_if_else == 0)
 	{
 		// var still has same ID of last outside if/else assignment
-		printf("Phi for \"%s\" not needed now (has no phi args)\n", var_name);
+		printf("No phi for %s_%d needed here (has no phi args)\n", var_name, vars[index].current_id);
 		return;
 	}
 	else if(if_else_context == IN_INNER_IF)
@@ -165,7 +166,7 @@ void _ssa_insert_phi_func(char *var_name)
 		// the inner or outer if before its read
 		if(vars[index].outer_if_phi_arg != -1 || vars[index].inner_if_phi_arg != -1)
 		{
-			printf("Phi not needed for INNER_IF %s_%d b/c prev assignment in guaranteed path\n", vars[index].var_name, vars[index].current_id);
+			printf("No phi for INNER_IF %s_%d b/c prev assignment in guaranteed path\n", vars[index].var_name, vars[index].current_id);
 			return;
 		}
 	}
@@ -192,7 +193,6 @@ void _ssa_insert_phi_func(char *var_name)
 
 	// Case where both inner if and else have var written to => need make them the
 	// only args for the phi functions and remove them from phi args list
-	// TESTING!!!!!!!!!!!!!!!!!
 	/*if(if_else_context == IN_OUTER_IF_AFTER_NEST &&
 	   vars[index].inner_if_phi_arg != -1 && vars[index].inner_else_phi_arg != -1)
 	{
@@ -258,10 +258,10 @@ void _ssa_insert_phi_func(char *var_name)
 	return;
 }
 
+// Called when an if/else context is being left
 // Go through all the variables and store the phi argument values that were
 // recorded in the current if/else context to the main phi argument array for
-// that variable;
-// If possible, try to consolidate phi args
+// that variable;// If possible, try to consolidate phi args
 void _ssa_store_if_else_phi_args()
 {
 	int i;
@@ -308,28 +308,25 @@ void _ssa_store_if_else_phi_args()
 			vars[i].var_name, vars[i].phi_args_if_else[vars[i].num_phi_args_if_else - 1], if_else_context);
 		}
 
-		// TESTING !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-		// Consolidate phi args if variables was assigned value after nested if/else
-		// This value would overwrite the value(s) from the nest
-		if(if_else_context == IN_OUTER_IF_AFTER_NEST)
+		if(if_else_context == IN_INNER_ELSE)
 		{
-			if(vars[i].inner_else_phi_arg != -1 || vars[i].inner_if_phi_arg != -1 )
+			// If assigned in both inner if and else, can clear the outer_if_phi_arg
+			// since these two assignments will dominate the previous assignment (if there was one)
+			if(vars[i].inner_else_phi_arg != -1 && vars[i].inner_if_phi_arg != -1)
 			{
-				_ssa_assigned_in_guaranteed_path(i, ASSIGNED_AFTER_NEST);
+				_ssa_assigned_in_guaranteed_path(i, ASSIGNED_INNER_IF_ELSE);
 			}
 		}
-
-		// Consolidate phi args to just inner and outer phi args if they were both assigned
-		// and no assignments done inner if and inner else
-		if(if_else_context == IN_OUTER_ELSE)
+		else if(if_else_context == IN_OUTER_ELSE)
 		{
+			// Consolidate phi args to just outer if/else phi args if they were both assigned
+			// and no assignments done inner if and inner else (or inner if/else were already cleared)
 			if(vars[i].outer_if_phi_arg != -1 && vars[i].outer_else_phi_arg != -1
 			   && vars[i].inner_if_phi_arg == -1 && vars[i].inner_else_phi_arg == -1)
 			{
 				_ssa_assigned_in_guaranteed_path(i, ASSIGNED_OUTER_IF_ELSE);
 			}
 		}
-
 	}
 
 	return;
@@ -437,7 +434,7 @@ void ssa_if_else_context_tracker(int new_context)
 	}
 	else if(new_context == IN_OUTER_ELSE)
 	{
-		// Going from outer if that didn't contain nested if else OR from outer if that did
+		// Going from outer if that didn't contain nested if/else OR from outer if that did
 		// contain a nested if/else
 		if(if_else_context == IN_OUTER_IF || if_else_context == IN_OUTER_IF_AFTER_NEST)
 		{
@@ -610,16 +607,27 @@ void ssa_process_tac(char *tac_line)
 
 		// Check if value was assigned in a "guaranteed path" If so, can clear
 		// unneeded phi args before next time phi function is needed
-		// String will be empty if assigned var was temp value
+		// String will be empty if assigned var was temp variable
 		if(strcmp(assigned_user_var, "") != 0)
 		{
-			// If assigned value outside if/else, call function to clear unneeded phi args
-			// Need to do this at end of function to not interfere with potential self assignment
-			// needing phi functions
+			// Index guaranteed to not be -1 since it was assigned value
+			int index = _ssa_get_var_index(assigned_user_var);
+			
 			if(if_else_context == OUTSIDE_IF_ELSE)
 			{
-				// Index guaranteed to not be -1 since it was assigned value
-				_ssa_assigned_in_guaranteed_path(_ssa_get_var_index(assigned_user_var), ASSIGNED_OUTSIDE);
+				// If assigned value outside if/else, clear unneeded phi args
+				// Need to do this at end of function to not interfere with potential self assignment
+				// needing phi functions
+				_ssa_assigned_in_guaranteed_path(index, ASSIGNED_OUTSIDE);
+			}
+			else if(if_else_context == IN_OUTER_IF_AFTER_NEST)
+			{
+				// Consolidate phi args if variable was assigned value after nested if/else
+				// This value would dominate the value(s) assigned in the nest
+				if(vars[index].inner_else_phi_arg != -1 || vars[index].inner_if_phi_arg != -1 )
+				{
+					_ssa_assigned_in_guaranteed_path(index, ASSIGNED_AFTER_NEST);
+				}
 			}
 		}
 	}
