@@ -8,9 +8,10 @@
 #define IN_OUTER_IF_AFTER_NEST 	3
 #define	IN_OUTER_ELSE			4
 
-
 #define ASSIGNED_OUTSIDE			10
 #define ASSIGNED_OUTER_IF_ELSE		11
+
+#define MAX_NUM_PHI_ARGS 256
 
 void ssa_init_file(char *ssa_file_name);
 void ssa_if_else_context_tracker(int context);

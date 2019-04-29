@@ -2,31 +2,27 @@
 # CPEG 621 Lab 3 - A Calculator Compiler Middle End
 #
 # TO DO:
-# Try to remove unnecessary phi functions or arguments
-#	Case where it is being read after inner if/else where it was assigned two values
-#		and was defined before entire if else => only needs inner if/else args for phi in this context,
-# 		but shouldn't forget outer until written to on guaranteed path
-#		This new phi assignment outside the inner if/should also remove those phi values since they are now joined
-#			WARNING!!!! y in uneededphi6
-# 			variable x in uneededphi5
-#			variable c in ifelse2
-#			variable y in uneededphi2
-#			variable z in uneededphi7
-#		Test written in both and read right after then read outside, written in both not read right 
-#		then read outside, written in one read right after then read outside, written in one not read
-#		right after then read outside
-#	Case where reading inside if when it was already defined inside if
-# 		Many ifelseb variable y
-# 		Can use solution from below problem to solve this (do before start of phi insertion)
-# 	Case where assigned in previous if, assigned in another if and then read right after
-#		should not need phi if no assignment done in inner if else
-#		y in uneededphi2, x in uneededphi4
-#	Case where it is assigned value in both outer if and else
-#		What if was assigned a value inside an inner if?
-#		Case where assigned in inner if or else, write to AFTER nest, then read => gets unneeded phi
-# 		Have to do this b/c can be written before nest in outer if, in nest, and in outer else 
-# 		y in uneededphi6
-# Remove unneeded basic blocks
+# Case where it is being read after inner if/else where it was assigned two values
+#	and was defined before entire if else => only needs inner if/else args for phi in this context,
+#	but shouldn't forget outer until written to on guaranteed path
+#	This new phi assignment outside the inner if/should also remove those phi values since they are now joined
+#		WARNING!!!! y in uneededphi6 (not assigned in both inner if/else)
+#		variable x in uneededphi5
+#		variable c in ifelse2
+#		variable y in uneededphi2
+#		variable z in uneededphi7
+#	Test written in both and read right after then read outside, written in both not read right away
+#	then read outside, written in one read right after then read outside, written in one not read
+#	right after then read outside
+# Case where reading inside if when it was already defined inside if
+#	Many ifelseb variable y
+# Case where assigned in previous if, assigned in another if and then read right after
+#	should not need phi if no assignment done in inner if else
+# Case where it is assigned value in both outer if and else
+#	What if was assigned a value inside an inner if?
+#	Case where assigned in inner if or else, write to AFTER nest, then read => gets unneeded phi
+#	Have to do this b/c can be written before nest in outer if, in nest, and in outer else 
+#	y in uneededphi6
 # Verify all features
 # Write report
 

@@ -7,8 +7,6 @@
 #include "calc.h"
 #include "ssa.h"
 
-#define MAX_NUM_PHI_ARGS 256
-
 typedef struct var_info
 {
 	char var_name[MAX_USR_VAR_NAME_LEN + 1];
