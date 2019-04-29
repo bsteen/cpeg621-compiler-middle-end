@@ -74,13 +74,13 @@ void _ssa_phi_arg_tracker(int var_index)
 			vars[var_index].outside_if_else_phi_arg = vars[var_index].current_id;
 			break;
 		default:	// Should never get here
-			printf("ERROR Invalid context for phi argument tracking\n");
+			printf("\nERROR Invalid context for phi argument tracking\n\n");
 	}
 
 	return;
 }
 
-// Called when variable is known to have been assigned value in a location or 
+// Called when variable is known to have been assigned value in a location or
 // locations that is guaranteed to be run, so can consolidate some phi arguments
 void _ssa_assigned_in_guaranteed_path(int index, int type)
 {
@@ -88,30 +88,53 @@ void _ssa_assigned_in_guaranteed_path(int index, int type)
 	if(type == ASSIGNED_OUTSIDE)
 	{
 		vars[index].num_phi_args_if_else = 0;
-		printf("%s_%d assigned outside if/else, clear all other phi args\n",
+		printf("%s_%d assigned outside if/else, cleared all other phi args\n",
 			vars[index].var_name, vars[index].outside_if_else_phi_arg);
 	}
 	else if(type == ASSIGNED_OUTER_IF_ELSE)
 	{
 		// If assigned in both outer if and else; The last two indexes in phi_args_if_else
 		// will be outer_if and outer_else; They will cancel out all other phi args
-		
+
 		int num_args = vars[index].num_phi_args_if_else;
 		int assigned_outer_if = vars[index].phi_args_if_else[num_args - 2];
 		int assigned_outer_else = vars[index].phi_args_if_else[num_args - 1];
-		
+
 		vars[index].phi_args_if_else[0] = assigned_outer_if;
 		vars[index].phi_args_if_else[1] = assigned_outer_else;
-		
+
 		vars[index].num_phi_args_if_else = 2;
 		vars[index].outside_if_else_phi_arg = -1;
-		
-		printf("%s_%d and %s_%d assigned in both outer if and outer else, clear all other phi args\n",
+
+		printf("%s_%d and %s_%d assigned in both outer if and outer else, cleared all other phi args\n",
 				vars[index].var_name, assigned_outer_if, vars[index].var_name, assigned_outer_else);
+	}
+	else if(type == ASSIGNED_AFTER_NEST)
+	{	// TESTING!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		if(vars[index].inner_else_phi_arg != -1)	// Else arg is stored after the if in the array
+		{
+			// Overwrite the else phi argument with the var assigned after the nest
+			int num_phi_args = vars[index].num_phi_args_if_else;
+			vars[index].phi_args_if_else[num_phi_args - 2] = vars[index].phi_args_if_else[num_phi_args - 1];
+
+			vars[index].inner_else_phi_arg = -1;
+			vars[index].num_phi_args_if_else--;
+		}
+
+		if(vars[index].inner_if_phi_arg != -1)
+		{
+			// Overwrite the if phi argument with the var assigned after the nest
+			int num_phi_args = vars[index].num_phi_args_if_else;
+			vars[index].phi_args_if_else[num_phi_args - 2] = vars[index].phi_args_if_else[num_phi_args - 1];
+
+			vars[index].inner_if_phi_arg = -1;
+			vars[index].num_phi_args_if_else--;
+		}
+		printf("%s_%d assigned value after nested if/else, cleared phi arg(s) from nest\n", vars[index].var_name, vars[index].current_id);
 	}
 	else
 	{
-		printf("ERROR Unknown type sent to _ssa_assigned_in_guaranteed_path: %d\n", type);
+		printf("\nERROR Unknown type sent to _ssa_assigned_in_guaranteed_path: %d\n\n", type);
 	}
 
 	return;
@@ -156,7 +179,7 @@ void _ssa_insert_phi_func(char *var_name)
 	{
 		if(vars[index].inner_if_phi_arg == -1 && vars[index].inner_else_phi_arg == -1)
 		{
-			printf("No phi for %s_%d, already assigned somewhere in OUTER_IF and no assignment in nested if/else\n",
+			printf("No phi for %s_%d, already assigned somewhere in OUTER_IF and no conflict with nested if/else\n",
 				vars[index].var_name, vars[index].current_id);
 			return;
 		}
@@ -169,14 +192,14 @@ void _ssa_insert_phi_func(char *var_name)
 
 	// Case where both inner if and else have var written to => need make them the
 	// only args for the phi functions and remove them from phi args list
-	/*
-	if(if_else_context == IN_OUTER_IF_AFTER_NEST &&
+	// TESTING!!!!!!!!!!!!!!!!!
+	/*if(if_else_context == IN_OUTER_IF_AFTER_NEST &&
 	   vars[index].inner_if_phi_arg != -1 && vars[index].inner_else_phi_arg != -1)
 	{
 		int inner_if = vars[index].inner_if_phi_arg;
 		int inner_else = vars[index].inner_else_phi_arg;
 		fprintf(ssa_file_ptr, "%s_%d, %s_%d);\n", var_name, inner_if, var_name, inner_else);
-		printf(ssa_file_ptr, "%s_%d, %s_%d);\n", var_name, inner_if, var_name, inner_else);
+		printf("%s_%d, %s_%d);\n", var_name, inner_if, var_name, inner_else);
 
 		vars[index].inner_if_phi_arg = -1;		// Clear them early so they can't be used again
 		vars[index].inner_else_phi_arg = -1;
@@ -186,9 +209,10 @@ void _ssa_insert_phi_func(char *var_name)
 
 		// Track the new variables that is the combination of the two inner if/elses
 		_ssa_phi_arg_tracker(index);
+		
+		printf("%s was assigned in both inner if/else and read right after, shortcut phi created (above)", var_name);
 		return;
-	}
-	*/
+	}*/
 
 	// Write out outside if/else phi argument first
 	if(vars[index].outside_if_else_phi_arg != -1)
@@ -263,7 +287,7 @@ void _ssa_store_if_else_phi_args()
 				id_to_store = vars[i].outer_else_phi_arg;
 				break;
 			default:	// Should never get here
-				printf("ERROR Invalid context for phi argument storing \n");
+				printf("\nERROR Invalid context for phi argument storing\n\n");
 		}
 
 		// If -1, means variable not written to inside if/else context (no storing needed)
@@ -283,7 +307,18 @@ void _ssa_store_if_else_phi_args()
 			printf("Recorded phi arg: %s_%d when leaving %d\n",
 			vars[i].var_name, vars[i].phi_args_if_else[vars[i].num_phi_args_if_else - 1], if_else_context);
 		}
-		
+
+		// TESTING !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		// Consolidate phi args if variables was assigned value after nested if/else
+		// This value would overwrite the value(s) from the nest
+		if(if_else_context == IN_OUTER_IF_AFTER_NEST)
+		{
+			if(vars[i].inner_else_phi_arg != -1 || vars[i].inner_if_phi_arg != -1 )
+			{
+				_ssa_assigned_in_guaranteed_path(i, ASSIGNED_AFTER_NEST);
+			}
+		}
+
 		// Consolidate phi args to just inner and outer phi args if they were both assigned
 		// and no assignments done inner if and inner else
 		if(if_else_context == IN_OUTER_ELSE)
@@ -294,7 +329,7 @@ void _ssa_store_if_else_phi_args()
 				_ssa_assigned_in_guaranteed_path(i, ASSIGNED_OUTER_IF_ELSE);
 			}
 		}
-		
+
 	}
 
 	return;
@@ -411,7 +446,7 @@ void ssa_if_else_context_tracker(int new_context)
 		}
 		else
 		{
-			printf("ERROR Entering UNKNOWN state: current=%d new=%d\n", if_else_context, new_context);
+			printf("\nERROR Entering UNKNOWN state: current=%d new=%d\n\n", if_else_context, new_context);
 		}
 	}
 	else if(new_context == OUTSIDE_IF_ELSE && if_else_context == IN_OUTER_ELSE)
@@ -422,7 +457,7 @@ void ssa_if_else_context_tracker(int new_context)
 	}
 	else	// Should never get here
 	{
-		printf("ERROR Entering UNKNOWN state: current=%d new=%d\n", if_else_context, new_context);
+		printf("\nERROR Entering UNKNOWN state: current=%d new=%d\n\n", if_else_context, new_context);
 	}
 
 	if_else_context = new_context;	// Update context value
