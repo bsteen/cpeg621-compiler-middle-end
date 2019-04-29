@@ -82,14 +82,39 @@ void _ssa_phi_arg_tracker(int var_index)
 	return;
 }
 
-// Called when variable is assigned value outside if/else
-// For the outside if/else case, the new assignment overwrites ALL previous assignments,
-// so all the phi arguments can be cleared
-void _ssa_assigned_in_guaranteed_path(int var_index)
+// Called when variable is known to have been assigned value in a location or 
+// locations that is guaranteed to be run, so can consolidate some phi arguments
+void _ssa_assigned_in_guaranteed_path(int index, int type)
 {
-	vars[var_index].num_phi_args_if_else = 0;
-	printf("%s_%d assigned outside if/else, clear all other phi args\n",
-			vars[var_index].var_name, vars[var_index].outside_if_else_phi_arg);
+	// For the outside if/else case, the new assignment overwrites ALL previous assignments,
+	if(type == ASSIGNED_OUTSIDE)
+	{
+		vars[index].num_phi_args_if_else = 0;
+		printf("%s_%d assigned outside if/else, clear all other phi args\n",
+			vars[index].var_name, vars[index].outside_if_else_phi_arg);
+	}
+	else if(type == ASSIGNED_OUTER_IF_ELSE)
+	{
+		// If assigned in both outer if and else; The last two indexes in phi_args_if_else
+		// will be outer_if and outer_else; They will cancel out all other phi args
+		
+		int num_args = vars[index].num_phi_args_if_else;
+		int assigned_outer_if = vars[index].phi_args_if_else[num_args - 2];
+		int assigned_outer_else = vars[index].phi_args_if_else[num_args - 1];
+		
+		vars[index].phi_args_if_else[0] = assigned_outer_if;
+		vars[index].phi_args_if_else[1] = assigned_outer_else;
+		
+		vars[index].num_phi_args_if_else = 2;
+		vars[index].outside_if_else_phi_arg = -1;
+		
+		printf("%s_%d and %s_%d assigned in both outer if and outer else, clear all other phi args\n",
+				vars[index].var_name, assigned_outer_if, vars[index].var_name, assigned_outer_else);
+	}
+	else
+	{
+		printf("ERROR Unknown type sent to _ssa_assigned_in_guaranteed_path: %d\n", type);
+	}
 
 	return;
 }
@@ -143,30 +168,29 @@ void _ssa_insert_phi_func(char *var_name)
 	vars[index].current_id++;	// Phi function counts as assignment => need new var ID
 	fprintf(ssa_file_ptr, "\t%s_%d = phi(", var_name, vars[index].current_id);
 	printf("%s_%d = phi(", var_name, vars[index].current_id);
-	
+
 	// Case where both inner if and else have var written to => need make them the
 	// only args for the phi functions and remove them from phi args list
 	/*
-	if(if_else_context == IN_OUTER_IF_AFTER_NEST && 
+	if(if_else_context == IN_OUTER_IF_AFTER_NEST &&
 	   vars[index].inner_if_phi_arg != -1 && vars[index].inner_else_phi_arg != -1)
 	{
 		int inner_if = vars[index].inner_if_phi_arg;
 		int inner_else = vars[index].inner_else_phi_arg;
 		fprintf(ssa_file_ptr, "%s_%d, %s_%d);\n", var_name, inner_if, var_name, inner_else);
 		printf(ssa_file_ptr, "%s_%d, %s_%d);\n", var_name, inner_if, var_name, inner_else);
-		
+
 		vars[index].inner_if_phi_arg = -1;		// Clear them early so they can't be used again
 		vars[index].inner_else_phi_arg = -1;
-	
+
 		// Since the two inner if/else phi args are now joined, can remove them from the args list
 		vars[index].num_phi_args_if_else -= 2;
-		
+
 		// Track the new variables that is the combination of the two inner if/elses
 		_ssa_phi_arg_tracker(index);
 		return;
 	}
 	*/
-	// Do the same for outer if and outer else (can't used the temp phi args)?????
 
 	// Write out outside if/else phi argument first
 	if(vars[index].outside_if_else_phi_arg != -1)
@@ -180,7 +204,6 @@ void _ssa_insert_phi_func(char *var_name)
 	// and since outer_if_phi_arg hasn't been written to the array yet
 	if(if_else_context == IN_OUTER_IF_AFTER_NEST && vars[index].outer_if_phi_arg != -1)
 	{
-
 		fprintf(ssa_file_ptr, "%s_%d, ", var_name, vars[index].outer_if_phi_arg);
 		printf("%s_%d, ", var_name, vars[index].outer_if_phi_arg);
 	}
@@ -207,7 +230,7 @@ void _ssa_insert_phi_func(char *var_name)
 		// with this new assignment to the phi function
 		// Also, since phi functions aren't needed inside else statements, DON'T need case
 		// here for an outer else guaranteed path
-		_ssa_assigned_in_guaranteed_path(index);
+		_ssa_assigned_in_guaranteed_path(index, ASSIGNED_OUTSIDE);
 	}
 
 	return;
@@ -215,7 +238,8 @@ void _ssa_insert_phi_func(char *var_name)
 
 // Go through all the variables and store the phi argument values that were
 // recorded in the current if/else context to the main phi argument array for
-// that variable; then reset the tracked phi arg variable for the next context
+// that variable;
+// If possible, try to consolidate phi args
 void _ssa_store_if_else_phi_args()
 {
 	int i;
@@ -258,9 +282,21 @@ void _ssa_store_if_else_phi_args()
 
 			vars[i].phi_args_if_else[num_args] = id_to_store;	// Copy to main array of args										// Reset for next context
 			vars[i].num_phi_args_if_else++;
-			printf("Recorded phi arg: %s_%d when leaving %d\n", 
+			printf("Recorded phi arg: %s_%d when leaving %d\n",
 			vars[i].var_name, vars[i].phi_args_if_else[vars[i].num_phi_args_if_else - 1], if_else_context);
 		}
+		
+		// Consolidate phi args to just inner and outer phi args if they were both assigned
+		// and no assignments done inner if and inner else
+		if(if_else_context == IN_OUTER_ELSE)
+		{
+			if(vars[i].outer_if_phi_arg != -1 && vars[i].outer_else_phi_arg != -1
+			   && vars[i].inner_if_phi_arg == -1 && vars[i].inner_else_phi_arg == -1)
+			{
+				_ssa_assigned_in_guaranteed_path(i, ASSIGNED_OUTER_IF_ELSE);
+			}
+		}
+		
 	}
 
 	return;
@@ -367,7 +403,7 @@ void ssa_if_else_context_tracker(int new_context)
 		return;
 	}
 	else if(new_context == IN_OUTER_ELSE)
-	{	
+	{
 		// Going from outer if that didn't contain nested if else OR from outer if that did
 		// contain a nested if/else
 		if(if_else_context == IN_OUTER_IF || if_else_context == IN_OUTER_IF_AFTER_NEST)
@@ -550,7 +586,7 @@ void ssa_process_tac(char *tac_line)
 			if(if_else_context == OUTSIDE_IF_ELSE)
 			{
 				// Index guaranteed to not be -1 since it was assigned value
-				_ssa_assigned_in_guaranteed_path(_ssa_get_var_index(assigned_user_var));
+				_ssa_assigned_in_guaranteed_path(_ssa_get_var_index(assigned_user_var), ASSIGNED_OUTSIDE);
 			}
 		}
 	}
