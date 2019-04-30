@@ -3,7 +3,6 @@
 #
 # TO DO:
 #	This new phi assignment outside the inner if/should remove those phi values since they are now joined
-#		y in uneededphi6 (not assigned in both inner if/else)
 #		variable x in uneededphi5
 #		variable c in ifelse2
 #		variable y in uneededphi2
@@ -11,15 +10,8 @@
 #	Test written in both and read right after then read outside, written in both not read right away
 #	then read outside, written in one read right after then read outside, written in one not read
 #	right after then read outside
-# Case where reading inside if when it was already defined inside if
-#	Many ifelseb variable y
-# Case where assigned in previous if, assigned in another if and then read right after
-#	should not need phi if no assignment done in inner if else
-# Case where it is assigned value in both outer if and else
-#	What if was assigned a value inside an inner if?
-#	Case where assigned in inner if or else, write to AFTER nest, then read => gets unneeded phi
-#	Have to do this b/c can be written before nest in outer if, in nest, and in outer else 
-#	y in uneededphi6
+# Case where assigned in previous if, assigned before inner if, assigned inner if
+# 	and then; should only need inner and previous outer assign 
 # Verify all features
 # Write report
 

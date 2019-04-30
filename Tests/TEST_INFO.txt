@@ -1,0 +1,22 @@
+class_example.txt
+	Provided example from assignment sheet (single 1-deep if else)
+
+correct_phi5.txt
+	y assigned in nested if only and then read after nest
+	x assigned in nested if/else and read after nest
+	x assigned in outer if after nest and outer else, read outside
+
+correct_phi6.txt
+	x assigned a value inside an inner if and assigned in both outer if/else
+	y assigned in both nested if/else and then read after nest and outside
+	
+correct_phi7.txt
+	Case where assigned value before nested if and only in inner if => only need
+	outer if arg and nested if args as phi args (var x)
+	
+ifelse2.txt
+	y being reading inside nested if when it was already defined in outer if
+	and in previous if/else
+	
+All other test files not explicitly mentioned here will also have correct phis, 
+but in most cases are just combinations or repeats of the files listed here
