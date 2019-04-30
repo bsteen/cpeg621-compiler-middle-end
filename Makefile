@@ -2,16 +2,6 @@
 # CPEG 621 Lab 3 - A Calculator Compiler Middle End
 #
 # TO DO:
-#	This new phi assignment outside the inner if/should remove those phi values since they are now joined
-#		variable x in uneededphi5
-#		variable c in ifelse2
-#		variable y in uneededphi2
-#		variable z in uneededphi7
-#	Test written in both and read right after then read outside, written in both not read right away
-#	then read outside, written in one read right after then read outside, written in one not read
-#	right after then read outside
-# Case where assigned in previous if, assigned before inner if, assigned inner if
-# 	and then; should only need inner and previous outer assign 
 # Verify all features
 # Write report
 
