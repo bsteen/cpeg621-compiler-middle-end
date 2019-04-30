@@ -1,9 +1,5 @@
 # Benjamin Steenkamer
 # CPEG 621 Lab 3 - A Calculator Compiler Middle End
-#
-# TO DO:
-# Verify all features
-# Write report
 
 # Generate calculator compiler middle end with basic blocks and SSA form
 calc: calc.l calc.y calc.h basic-block.c basic-block.h c-code.c c-code.h ssa.c ssa.h

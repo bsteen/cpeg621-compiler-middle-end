@@ -1,14 +1,16 @@
-This file gives details on which variables to pay attention to (especially for 
-phi insertion) in a given test file after it is sent through the compiler middle
-end. I tried to make sure phis were inserted only when necessary and with the
-fewest amount of arguments necessary.
+This file gives some details on which variables to pay attention to (especially
+for phi insertion) in a given test file after it is sent through the compiler
+middle end. I tried to make sure phis were inserted only when necessary and with
+the fewest amount of arguments necessary.
 
-To run, do: ./calc Tests/<file_name>
+To run one of these tests, do: ./calc Tests/<file_name>
 Then look at Output/tac-ssa.txt for the compiler middle end output in SSA form
-with basic blocks
+with basic blocks.
 
-All other test files not explicitly mentioned here will also have correct phis, 
-but in most cases are just combinations or repeats of the files listed here
+This list doesn't explain all the files or test cases I created, but overall
+every file in the Tests/ folder should test a specific border case, feature, or
+mixture of several cases for the compiler middle end with basic block and SSA
+form output.
 
 ********************************************************************************
 class_example.txt
@@ -25,18 +27,18 @@ correct_phi5.txt
 correct_phi6.txt
 	x assigned a value inside an inner if and assigned in both outer if/else
 	y assigned in both nested if/else and then read after nest and outside
-	
+
 correct_phi7.txt
 	Case where assigned value before nested if and only in inner if => only need
 	outer if arg and nested if args as phi args (var x)
-	
+
 correct_phi8.txt
-	z defined prior to if else then defined in both inner if and else, 
+	z defined prior to if else then defined in both inner if and else,
 	then read from outside, then written to at end of outer if
 	also written to in outer else and then read outside
 	(phi correctly only needed last outer if and outer else value, ignores
 	all others)
-	
+
 correct_phi9.txt
 	x written in both inner if else, not read until fully outside
 
