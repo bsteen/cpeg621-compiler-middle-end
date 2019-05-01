@@ -1,6 +1,14 @@
 # Benjamin Steenkamer
 # CPEG 621 Lab 3 - A Calculator Compiler Middle End
 
+# To create the compiler middle end, type `make`
+# The binary `calc` will be created in the main folder
+# Then type `./calc Tests/<test_file_name> to run the compiler middle end on a
+# 	input calculator program
+# All output files from the middle end are placed in `Output/`
+#	`tac-ssa.txt` is the "final" file for this project, with all original code
+#	in SSA form with basic blocks.
+
 # Generate calculator compiler middle end with basic blocks and SSA form
 calc: calc.l calc.y calc.h basic-block.c basic-block.h c-code.c c-code.h ssa.c ssa.h
 	bison -d calc.y

@@ -48,8 +48,9 @@ int _ssa_get_var_index(char *var_name)
 
 // Record when a variable is written, either outside or inside if/else statement
 // If it's the last write to that variables in the if/else context, it will need
-// to be added to the if/else phi arguments list for use the next time it is read outside the if/else context
-// _ssa_store_if_else_phi_args will handle this "exiting" storage at a later time
+// to be added to the if/else phi arguments list for use the next time it is
+// read outside the if/else context _ssa_store_if_else_phi_args will handle this
+// "exiting" storage at a later time
 void _ssa_phi_arg_tracker(int var_index)
 {
 	// current_id has already been increased before calling this function,
@@ -117,8 +118,9 @@ void _ssa_assigned_in_guaranteed_path(int index, int type)
 	}
 	else if(type == ASSIGNED_OUTER_IF_ELSE)
 	{
-		// If assigned in both outer if and else; The last two indexes in phi_args_if_else
-		// will be outer_if and outer_else; They will cancel out all other phi args
+		// If assigned in both outer if and else, they will cancel out all other
+		// phi args; the last two indexes in phi_args_if_else will be outer_if
+		// and outer_else;
 
 		int num_args = vars[index].num_phi_args_if_else;
 		int assigned_outer_if = vars[index].phi_args_if_else[num_args - 2];
@@ -142,8 +144,8 @@ void _ssa_assigned_in_guaranteed_path(int index, int type)
 }
 
 // Takes in a user variable name that is being READ from, determines if if a
-// phi function needs to be inserted, and if it does, it will write it out to the SSA
-// file
+// phi function needs to be inserted, and if it does, it will write it out to
+// the SSA file
 void _ssa_insert_phi_func(char *var_name)
 {
 	int index = _ssa_get_var_index(var_name);
@@ -191,7 +193,7 @@ void _ssa_insert_phi_func(char *var_name)
 	fprintf(ssa_file_ptr, "\t%s_%d = phi(", var_name, vars[index].current_id);
 	printf("WROTE OUT:\t%s_%d = phi(", var_name, vars[index].current_id);
 
-	// Short cut phi insertions
+	// "Short cut phi" insertions
 	if(if_else_context == IN_OUTER_IF_AFTER_NEST)
 	{
 		if(vars[index].inner_if_phi_arg != -1 && vars[index].inner_else_phi_arg != -1)
@@ -204,13 +206,13 @@ void _ssa_insert_phi_func(char *var_name)
 			fprintf(ssa_file_ptr, "%s_%d, %s_%d);\n", var_name, inner_if, var_name, inner_else);
 			printf("%s_%d, %s_%d);\n", var_name, inner_if, var_name, inner_else);
 			printf("%s read right after being assigned in both inner if/elses, shortcut phi created\n", var_name);
-			
+
 			// Remove unneeded phi args from inner if and inner else
 			_ssa_assigned_in_guaranteed_path(index, ASSIGNED_AFTER_NEST);
 
 			// Track the new var that is the combination of the two inner if/elses
 			_ssa_phi_arg_tracker(index);
-			
+
 			return;
 		}
 		else if((vars[index].outer_if_phi_arg != -1) &&
@@ -225,7 +227,7 @@ void _ssa_insert_phi_func(char *var_name)
 			fprintf(ssa_file_ptr, "%s_%d, %s_%d);\n", var_name, outer_if, var_name, inner_if);
 			printf("%s_%d, %s_%d);\n", var_name, outer_if, var_name, inner_if);
 			printf("%s assigned before and in inner if and read right after, shortcut phi created\n", var_name);
-			
+
 			// Remove unneeded phi arg from inner if
 			_ssa_assigned_in_guaranteed_path(index, ASSIGNED_AFTER_NEST);
 
@@ -494,6 +496,7 @@ void ssa_if_else_context_tracker(int new_context)
 	return;
 }
 
+// ***************MAIN LOGIC OF THIS MODULE***************
 // Takes the front end TAC code that passed through the basic block generation
 // and processes it for SSA form; this includes inserting phi functions and
 // renaming variables
